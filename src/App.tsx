@@ -9,7 +9,7 @@ import { PageView } from "./pages/PageView";
 
 let reopenedLastPage = false;
 
-/** On app launch, reopen the page you were on last time — like Notion does. */
+/** On app launch, reopen the page you were on last time, like Notion does. */
 function HomeRoute() {
   const loaded = usePages((s) => s.loaded);
   const navigate = useNavigate();

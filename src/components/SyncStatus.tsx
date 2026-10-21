@@ -20,7 +20,7 @@ export function SyncStatus({ compact = false }: { compact?: boolean }) {
   } else if (status === "error") {
     icon = <AlertCircle size={13} />;
     text = "Sync failed";
-    title = `${lastError ?? "Unknown error"} — click to retry`;
+    title = `${lastError ?? "Unknown error"}. Click to retry.`;
     tone = "text-danger";
   } else if (status === "syncing" || pending) {
     icon = <RefreshCw size={13} className="animate-spin [animation-duration:1.4s]" />;
