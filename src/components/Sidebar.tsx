@@ -186,7 +186,7 @@ function AccountMenu() {
         <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[5px] bg-ink text-[12px] font-semibold text-paper">
           {initial}
         </span>
-        <span className="truncate text-[14px] font-medium">Notes</span>
+        <span className="truncate text-[14px] font-medium">Margin</span>
       </button>
       <Popover anchor={btn.current} open={open} onClose={close} width={240}>
         <div className="truncate px-2 py-1.5 text-[12px] text-muted">{email}</div>

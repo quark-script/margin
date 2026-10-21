@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
       manifest: {
-        name: "Notes",
-        short_name: "Notes",
+        name: "Margin",
+        short_name: "Margin",
         description: "Personal notes, synced everywhere.",
         theme_color: "#FBFBFA",
         background_color: "#FBFBFA",

@@ -31,7 +31,7 @@ export function PageView() {
   }, [ancestors, expandMany]);
 
   useEffect(() => {
-    document.title = page ? `${page.icon ? page.icon + " " : ""}${displayTitle(page.title)}` : "Notes";
+    document.title = page ? `${page.icon ? page.icon + " " : ""}${displayTitle(page.title)}` : "Margin";
     if (page) {
       try {
         localStorage.setItem("lastPage", page.id);

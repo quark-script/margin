@@ -1,6 +1,6 @@
-# Notes
+# Margin
 
-A clean, minimal, Notion-style notes app for personal use. React + Supabase, installable as a PWA on phone and desktop, works offline.
+Margin is a clean, minimal, Notion-style notes app for personal use. React + Supabase, installable as a PWA on phone and desktop, works offline.
 
 ## One-time Supabase setup (required — the app won't load pages without step 1)
 
