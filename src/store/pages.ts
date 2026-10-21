@@ -271,24 +271,25 @@ export const usePages = create<State>((set, get) => {
 
   const subscribe = (userId: string) => {
     channel?.unsubscribe();
+    const table = { schema: "notes", table: "pages" } as const;
+    const ownRows = { ...table, filter: `owner_id=eq.${userId}` };
+    const onUpsert = ({ new: row }: { new: object }) => {
+      applyRemote(row as Page);
+      persist();
+    };
     channel = supabase
       .channel(`pages:${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "notes", table: "pages", filter: `owner_id=eq.${userId}` },
-        (payload) => {
-          if (payload.eventType === "DELETE") {
-            const id = (payload.old as { id?: string }).id;
-            if (id && !get().dirty[id] && get().pages[id]) {
-              removeLocal([id, ...descendantsOf(get().pages, id)]);
-              persist();
-            }
-          } else {
-            applyRemote(payload.new as Page);
-            persist();
-          }
-        },
-      )
+      .on("postgres_changes", { ...ownRows, event: "INSERT" }, onUpsert)
+      .on("postgres_changes", { ...ownRows, event: "UPDATE" }, onUpsert)
+      // Realtime can't filter DELETE events, and with RLS `old` carries only the id.
+      // Ids we don't have locally are ignored.
+      .on("postgres_changes", { ...table, event: "DELETE" }, ({ old }) => {
+        const id = (old as { id?: string }).id;
+        if (id && !get().dirty[id] && get().pages[id]) {
+          removeLocal([id, ...descendantsOf(get().pages, id)]);
+          persist();
+        }
+      })
       .subscribe();
   };
 
