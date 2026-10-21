@@ -58,6 +58,8 @@ let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let syncing: Promise<void> | null = null;
 let syncAgain = false;
 let cleanupListeners: (() => void) | null = null;
+// getSession() and onAuthStateChange(INITIAL_SESSION) both call init() on startup; share one run.
+let initRun: { userId: string; promise: Promise<void> } | null = null;
 
 const nowIso = () => new Date().toISOString();
 
@@ -278,47 +280,19 @@ export const usePages = create<State>((set, get) => {
     status: "idle",
     lastError: null,
 
-    async init(userId) {
-      if (get().userId === userId && get().loaded) return;
-      const k = keys(userId);
-      const [pages, dirty, deletions] = await Promise.all([
-        idbGet<Record<string, Page>>(k.pages),
-        idbGet<Record<string, true>>(k.dirty),
-        idbGet<Record<string, true>>(k.deletions),
-      ]);
-      set({
-        userId,
-        loaded: true,
-        pages: pages ?? {},
-        dirty: dirty ?? {},
-        deletions: deletions ?? {},
-        status: navigator.onLine ? "idle" : "offline",
+    init(userId) {
+      if (get().userId === userId && get().loaded) return Promise.resolve();
+      if (initRun?.userId === userId) return initRun.promise;
+      const promise = initFor(userId).finally(() => {
+        if (initRun?.promise === promise) initRun = null;
       });
-
-      subscribe(userId);
-
-      const onOnline = () => void get().sync();
-      const onOffline = () => set({ status: "offline" });
-      const onVisible = () => document.visibilityState === "visible" && void get().sync();
-      window.addEventListener("online", onOnline);
-      window.addEventListener("offline", onOffline);
-      document.addEventListener("visibilitychange", onVisible);
-      const interval = setInterval(() => {
-        if (Object.keys(get().dirty).length || Object.keys(get().deletions).length) void get().sync();
-      }, 30_000);
-      cleanupListeners = () => {
-        window.removeEventListener("online", onOnline);
-        window.removeEventListener("offline", onOffline);
-        document.removeEventListener("visibilitychange", onVisible);
-        clearInterval(interval);
-      };
-
-      // First sync of a session does a full pull so deletions from other devices show up.
-      await doSync(true);
+      initRun = { userId, promise };
+      return promise;
     },
 
     async reset() {
       const uid = get().userId;
+      initRun = null;
       cleanupListeners?.();
       cleanupListeners = null;
       await channel?.unsubscribe();
@@ -427,6 +401,45 @@ export const usePages = create<State>((set, get) => {
       get().updatePage(id, { parent_id: newParentId, position });
     },
   };
+
+  async function initFor(userId: string): Promise<void> {
+    cleanupListeners?.();
+    const k = keys(userId);
+    const [pages, dirty, deletions] = await Promise.all([
+      idbGet<Record<string, Page>>(k.pages),
+      idbGet<Record<string, true>>(k.dirty),
+      idbGet<Record<string, true>>(k.deletions),
+    ]);
+    set({
+      userId,
+      loaded: true,
+      pages: pages ?? {},
+      dirty: dirty ?? {},
+      deletions: deletions ?? {},
+      status: navigator.onLine ? "idle" : "offline",
+    });
+
+    subscribe(userId);
+
+    const onOnline = () => void get().sync();
+    const onOffline = () => set({ status: "offline" });
+    const onVisible = () => document.visibilityState === "visible" && void get().sync();
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    document.addEventListener("visibilitychange", onVisible);
+    const interval = setInterval(() => {
+      if (Object.keys(get().dirty).length || Object.keys(get().deletions).length) void get().sync();
+    }, 30_000);
+    cleanupListeners = () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(interval);
+    };
+
+    // First sync of a session does a full pull so deletions from other devices show up.
+    await doSync(true);
+  }
 
   async function doSync(full: boolean): Promise<void> {
     const uid = get().userId;
