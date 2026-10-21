@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-route
 import { useAuth } from "./store/auth";
 import { usePages } from "./store/pages";
 import { AppShell } from "./components/AppShell";
-import { Login } from "./pages/Login";
+import { Login, SetPassword } from "./pages/Login";
 import { Home } from "./pages/Home";
 import { PageView } from "./pages/PageView";
 
@@ -30,11 +30,13 @@ function HomeRoute() {
 export default function App() {
   const session = useAuth((s) => s.session);
   const ready = useAuth((s) => s.ready);
+  const recovering = useAuth((s) => s.recovering);
   const start = useAuth((s) => s.start);
 
   useEffect(() => start(), [start]);
 
   if (!ready) return null;
+  if (session && recovering) return <SetPassword />;
 
   return (
     <BrowserRouter>

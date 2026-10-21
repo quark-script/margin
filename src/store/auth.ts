@@ -1,11 +1,14 @@
 import { create } from "zustand";
 import type { Session } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
+import { recoveryInUrl, supabase } from "../lib/supabase";
 import { hasPending, usePages } from "./pages";
 
 type AuthState = {
   session: Session | null;
   ready: boolean;
+  /** Signed in through a password-reset link; must set a new password before using the app. */
+  recovering: boolean;
+  finishRecovery: () => void;
   start: () => () => void;
   /** Resolves false if the user cancelled because unsynced edits would be lost. */
   signOut: () => Promise<boolean>;
@@ -14,6 +17,8 @@ type AuthState = {
 export const useAuth = create<AuthState>((set) => ({
   session: null,
   ready: false,
+  recovering: recoveryInUrl,
+  finishRecovery: () => set({ recovering: false }),
 
   start() {
     // getSession reads from local storage, so this works offline too.
@@ -21,8 +26,8 @@ export const useAuth = create<AuthState>((set) => ({
       set({ session: data.session, ready: true });
       if (data.session) void usePages.getState().init(data.session.user.id);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      set({ session, ready: true });
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      set({ session, ready: true, ...(event === "PASSWORD_RECOVERY" ? { recovering: true } : {}) });
       if (session) void usePages.getState().init(session.user.id);
     });
     return () => data.subscription.unsubscribe();
