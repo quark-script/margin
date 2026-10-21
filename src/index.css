@@ -152,7 +152,8 @@ button {
   }
 }
 @media (max-width: 640px) {
-  .bn-editor {
+  /* Same specificity as the desktop rule above, or that one wins */
+  .bn-container .bn-editor {
     padding-inline: 0 !important;
   }
 }

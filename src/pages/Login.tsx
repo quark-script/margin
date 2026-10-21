@@ -96,18 +96,22 @@ export function Login() {
           />
         </label>
         {mode === "signin" && (
-          <label className="block">
-            <span className="mb-1.5 flex items-baseline justify-between text-[13px] font-medium text-ink">
-              Password
+          <div>
+            {/* The button stays outside the <label>: a label binds to its first control. */}
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <label htmlFor="password" className="text-[13px] font-medium text-ink">
+                Password
+              </label>
               <button
                 type="button"
                 onClick={() => switchMode("forgot")}
-                className="text-[13px] font-normal text-muted hover:text-ink"
+                className="text-[13px] text-muted hover:text-ink"
               >
                 Forgot password?
               </button>
-            </span>
+            </div>
             <input
+              id="password"
               type="password"
               required
               autoComplete="current-password"
@@ -115,7 +119,7 @@ export function Login() {
               onChange={(e) => setPassword(e.target.value)}
               className={field}
             />
-          </label>
+          </div>
         )}
 
         {error && <p className="text-[13px] text-danger">{error}</p>}

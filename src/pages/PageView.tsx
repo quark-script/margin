@@ -25,6 +25,14 @@ export function PageView() {
   const isDark = useTheme((s) => s.isDark);
   const expandMany = useUi((s) => s.expandMany);
   const editorRef = useRef<BlockNoteEditor | null>(null);
+  // Enter in the title before the lazy editor has loaded: focus the body once it's ready.
+  const focusBodyWhenReady = useRef(false);
+
+  const focusBody = (ed: BlockNoteEditor) => {
+    const first = ed.document[0];
+    if (first) ed.setTextCursorPosition(first, "start");
+    ed.focus();
+  };
 
   useEffect(() => {
     if (ancestors.length) expandMany(ancestors.map((a) => a.id));
@@ -99,11 +107,9 @@ export function PageView() {
             pageId={page.id}
             readOnly={trashed}
             onEnter={() => {
-              const ed = editorRef.current;
-              if (!ed) return;
-              const first = ed.document[0];
-              if (first) ed.setTextCursorPosition(first, "start");
-              ed.focus();
+              if (editorRef.current) return focusBody(editorRef.current);
+              focusBodyWhenReady.current = true;
+              (document.activeElement as HTMLElement | null)?.blur();
             }}
           />
           <div className="mt-2 sm:-mx-[54px]">
@@ -116,7 +122,13 @@ export function PageView() {
               isDark={isDark}
               editable={!trashed}
               onChange={setContent}
-              onReady={(ed) => (editorRef.current = ed)}
+              onReady={(ed) => {
+                editorRef.current = ed;
+                if (focusBodyWhenReady.current) {
+                  focusBodyWhenReady.current = false;
+                  focusBody(ed);
+                }
+              }}
             />
             </Suspense>
           </div>
