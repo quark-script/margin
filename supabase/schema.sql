@@ -1,4 +1,6 @@
--- Applied to the "upkeep" Supabase project as migration "notes_init" (2026-10-21).
+-- Current schema of the "notes" app in the "upkeep" Supabase project. Applied as migration
+-- "notes_init" (2026-10-21), with the parent-ownership policies fixed afterwards (see
+-- migrations/20261021_fix_policy_recursion.sql).
 create schema if not exists notes;
 
 create table notes.pages (
@@ -36,10 +38,18 @@ create trigger pages_touch_updated_at before update on notes.pages for each row 
 
 alter table notes.pages enable row level security;
 create policy "pages_select_own" on notes.pages for select to authenticated using (owner_id = (select auth.uid()));
+-- Parent ownership goes through a security definer function: a policy on notes.pages that
+-- queries notes.pages itself fails with 42P17 (infinite recursion).
+create or replace function notes.owns_page(page_id uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from notes.pages where id = page_id and owner_id = (select auth.uid()));
+$$;
+revoke all on function notes.owns_page(uuid) from public, anon;
+grant execute on function notes.owns_page(uuid) to authenticated;
 create policy "pages_insert_own" on notes.pages for insert to authenticated with check (
-  owner_id = (select auth.uid()) and (parent_id is null or exists (select 1 from notes.pages p where p.id = parent_id and p.owner_id = (select auth.uid()))));
+  owner_id = (select auth.uid()) and (parent_id is null or notes.owns_page(parent_id)));
 create policy "pages_update_own" on notes.pages for update to authenticated using (owner_id = (select auth.uid())) with check (
-  owner_id = (select auth.uid()) and (parent_id is null or exists (select 1 from notes.pages p where p.id = parent_id and p.owner_id = (select auth.uid()))));
+  owner_id = (select auth.uid()) and (parent_id is null or notes.owns_page(parent_id)));
 create policy "pages_delete_own" on notes.pages for delete to authenticated using (owner_id = (select auth.uid()));
 
 revoke all on schema notes from anon, public;
