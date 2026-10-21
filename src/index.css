@@ -158,6 +158,48 @@ button {
   }
 }
 
+/* Suggestion menus (/ and [[): quiet outlined icons instead of the default solid ink boxes */
+.bn-container .bn-mt-suggestion-menu-item-section:first-child {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.bn-container .bn-mt-suggestion-menu-item-subtitle {
+  color: var(--muted);
+}
+.bn-container .bn-suggestion-menu-item .mantine-Badge-root {
+  background: transparent;
+  color: var(--faint);
+  padding-inline: 0;
+}
+
+/* Links to other pages ([[ menu). Accent is reserved for links, so these use it too. */
+.page-link {
+  display: inline;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-underline-offset: 3px;
+  border-radius: 4px;
+  padding: 0 2px;
+  cursor: pointer;
+}
+.page-link:hover {
+  background: var(--hover);
+  text-decoration-color: var(--accent);
+}
+.page-link-icon {
+  display: inline-flex;
+  margin-right: 3px;
+  vertical-align: -0.1em;
+  color: var(--muted);
+  text-decoration: none;
+}
+.page-link-missing {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
 .page-title {
   font-size: 40px;
   line-height: 1.15;

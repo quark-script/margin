@@ -7,6 +7,7 @@ import { ancestorsOf, childrenOf, isTrashed, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { useTheme } from "../lib/theme";
 import { displayTitle } from "../lib/text";
+import { backlinksTo } from "../lib/links";
 import { EmojiPicker, randomEmoji } from "../components/EmojiPicker";
 import { IconButton, Popover } from "../components/Menu";
 import { PageMenu } from "../components/PageTree";
@@ -133,6 +134,7 @@ export function PageView() {
             </Suspense>
           </div>
           {!trashed && <SubPages pageId={page.id} />}
+          <Backlinks pageId={page.id} />
         </article>
       </div>
     </div>
@@ -264,6 +266,28 @@ function SubPages({ pageId }: { pageId: string }) {
       >
         <Plus size={16} /> Add a page inside
       </button>
+    </section>
+  );
+}
+
+function Backlinks({ pageId }: { pageId: string }) {
+  const links = usePages(useShallow((s) => backlinksTo(s.pages, pageId).filter((p) => !isTrashed(s.pages, p.id))));
+  if (!links.length) return null;
+  return (
+    <section className="mt-8">
+      <h2 className="mb-1 text-[13px] font-medium text-muted">Linked from</h2>
+      <ul>
+        {links.map((p) => (
+          <li key={p.id}>
+            <Link to={`/p/${p.id}`} className="-mx-2 flex h-9 items-center gap-2 rounded-md px-2 text-[15px] hover:bg-hover">
+              <span className="flex w-5 justify-center text-[16px] leading-none">
+                {p.icon || <FileText size={17} className="text-faint" strokeWidth={1.75} />}
+              </span>
+              <span className="truncate">{displayTitle(p.title)}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

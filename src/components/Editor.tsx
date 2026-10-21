@@ -1,11 +1,74 @@
 import { useEffect, useRef } from "react";
-import { useCreateBlockNote } from "@blocknote/react";
+import {
+  getDefaultReactSlashMenuItems,
+  SuggestionMenuController,
+  useCreateBlockNote,
+  type DefaultReactSuggestionItem,
+} from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
-import type { BlockNoteEditor, PartialBlock } from "@blocknote/core";
+import { BlockNoteSchema, defaultInlineContentSpecs, type BlockNoteEditor, type PartialBlock } from "@blocknote/core";
+import { filterSuggestionItems } from "@blocknote/core/extensions";
 import { en } from "@blocknote/core/locales";
+import { FilePlus, FileText, Link2 } from "lucide-react";
 import "@blocknote/mantine/style.css";
 import { MEDIA_BUCKET, MEDIA_PREFIX, supabase } from "../lib/supabase";
 import type { Block } from "../lib/types";
+import { isTrashed, usePages } from "../store/pages";
+import { displayTitle } from "../lib/text";
+import { pageLinkSpec } from "./PageLink";
+
+const schema = BlockNoteSchema.create({
+  inlineContentSpecs: { ...defaultInlineContentSpecs, pageLink: pageLinkSpec },
+});
+type Ed = typeof schema.BlockNoteEditor;
+
+const LINK_TRIGGER = "[[";
+
+function insertPageLink(editor: Ed, pageId: string) {
+  editor.insertInlineContent([{ type: "pageLink", props: { pageId } }, " "]);
+}
+
+/** Items for the `[[` menu: matching pages, plus "create" when nothing has that exact title. */
+function pageLinkItems(editor: Ed, currentPageId: string, query: string): DefaultReactSuggestionItem[] {
+  const { pages } = usePages.getState();
+  const q = query.trim().toLowerCase();
+  const matches = Object.values(pages)
+    .filter((p) => p.id !== currentPageId && !isTrashed(pages, p.id))
+    .filter((p) => !q || displayTitle(p.title).toLowerCase().includes(q))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    .slice(0, 12)
+    .map<DefaultReactSuggestionItem>((p) => ({
+      title: displayTitle(p.title),
+      icon: p.icon ? <span>{p.icon}</span> : <FileText size={18} />,
+      onItemClick: () => insertPageLink(editor, p.id),
+    }));
+  const exact = matches.some((m) => m.title.toLowerCase() === q);
+  if (q && !exact) {
+    const title = query.trim();
+    matches.push({
+      title: `Create “${title}”`,
+      subtext: "New page at the top level",
+      icon: <FilePlus size={18} />,
+      onItemClick: () => insertPageLink(editor, usePages.getState().createPage(null, { title })),
+    });
+  }
+  return matches;
+}
+
+function slashItems(editor: Ed, query: string): DefaultReactSuggestionItem[] {
+  const linkItem: DefaultReactSuggestionItem = {
+    title: "Link to page",
+    subtext: "Insert a link to another page",
+    aliases: ["link", "page", "mention", "[["],
+    group: "Basic blocks",
+    icon: <Link2 size={18} />,
+    // Runs after the slash menu has removed "/query", so the [[ menu opens in a clean spot.
+    onItemClick: () =>
+      (editor.extensions.get("suggestionMenu") as { openSuggestionMenu?: (t: string) => void } | undefined)
+        ?.openSuggestionMenu?.(LINK_TRIGGER),
+  };
+  return filterSuggestionItems([...getDefaultReactSlashMenuItems(editor), linkItem], query);
+}
 
 const dictionary = {
   ...en,
@@ -52,7 +115,7 @@ type Props = {
   isDark: boolean;
   editable: boolean;
   onChange: (blocks: Block[]) => void;
-  onReady?: (editor: BlockNoteEditor) => void;
+  onReady?: (editor: BlockNoteEditor<any, any, any>) => void;
 };
 
 /**
@@ -62,7 +125,8 @@ type Props = {
 export function Editor({ pageId, rev, initialContent, isDark, editable, onChange, onReady }: Props) {
   const editor = useCreateBlockNote(
     {
-      initialContent: initialContent.length ? (initialContent as PartialBlock[]) : undefined,
+      schema,
+      initialContent: initialContent.length ? (initialContent as PartialBlock<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>[]) : undefined,
       uploadFile,
       resolveFileUrl,
       animations: false,
@@ -86,6 +150,13 @@ export function Editor({ pageId, rev, initialContent, isDark, editable, onChange
       theme={isDark ? "dark" : "light"}
       onChange={() => onChangeRef.current(editor.document as unknown as Block[])}
       data-color-scheme={isDark ? "dark" : "light"}
-    />
+      slashMenu={false}
+    >
+      <SuggestionMenuController triggerCharacter="/" getItems={async (q) => slashItems(editor, q)} />
+      <SuggestionMenuController
+        triggerCharacter={LINK_TRIGGER}
+        getItems={async (q) => pageLinkItems(editor, pageId, q)}
+      />
+    </BlockNoteView>
   );
 }
