@@ -1,12 +1,14 @@
 # Margin
 
-A minimal, offline-first notes app. Nested pages, a block editor, search, and sync across devices. Installable as a PWA.
+A minimal, offline-first notes app. Nested pages, linked notes, a block editor, search, and sync across devices. Installable as a PWA.
 
 Built with React, TypeScript, BlockNote and Supabase.
 
 ## Features
 
 - Nested pages with favorites and trash
+- Links between pages (`[[`) with backlinks; links follow renames
+- Daily notes: one click opens today's page
 - Block editor with images, tables, code and to-dos
 - Search across titles and content (`Ctrl/⌘ K`)
 - Works offline; syncs and updates live across devices
@@ -37,3 +39,4 @@ Edits are saved locally first (IndexedDB) and pushed to Supabase in the backgrou
 | `Ctrl/⌘ \` | Toggle sidebar |
 | `Alt N` | New page |
 | `/` | Insert a block |
+| `[[` | Link to a page |

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
+  CalendarDays,
   ChevronsLeft,
   FileText,
   LogOut,
@@ -21,6 +22,7 @@ import { displayTitle } from "../lib/text";
 import { PageTree } from "./PageTree";
 import { IconButton, MenuDivider, MenuItem, Popover } from "./Menu";
 import { SyncStatus } from "./SyncStatus";
+import { openToday } from "../lib/daily";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const modKey = isMac ? "⌘" : "Ctrl";
@@ -62,6 +64,15 @@ export function Sidebar({ onCollapse }: { onCollapse?: () => void }) {
       <div className="px-2 pb-2">
         <SideRow icon={<Search size={16} />} onClick={() => setSwitcherOpen(true)} hint={`${modKey} K`}>
           Search
+        </SideRow>
+        <SideRow
+          icon={<CalendarDays size={16} />}
+          onClick={() => {
+            setSidebarOpen(false);
+            navigate(`/p/${openToday()}`);
+          }}
+        >
+          Today
         </SideRow>
       </div>
 
