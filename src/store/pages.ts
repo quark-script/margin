@@ -64,21 +64,29 @@ let initRun: { userId: string; promise: Promise<void> } | null = null;
 const nowIso = () => new Date().toISOString();
 
 export const usePages = create<State>((set, get) => {
-  const persist = () => {
+  const writeLocal = () => {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = null;
     const { userId, pages, dirty, deletions } = get();
     if (!userId) return;
+    const k = keys(userId);
+    void idbSet(k.pages, pages);
+    void idbSet(k.dirty, dirty);
+    void idbSet(k.deletions, deletions);
+  };
+
+  const persist = () => {
+    if (!get().userId) return;
     if (persistTimer) clearTimeout(persistTimer);
-    persistTimer = setTimeout(() => {
-      const k = keys(userId);
-      void idbSet(k.pages, pages);
-      void idbSet(k.dirty, dirty);
-      void idbSet(k.deletions, deletions);
-    }, 250);
+    persistTimer = setTimeout(writeLocal, 250);
   };
 
   const scheduleFlush = (ms = 900) => {
     if (flushTimer) clearTimeout(flushTimer);
-    flushTimer = setTimeout(() => void get().sync(), ms);
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      void get().sync();
+    }, ms);
   };
 
   const markDirty = (ids: string[]) => {
@@ -446,10 +454,22 @@ export const usePages = create<State>((set, get) => {
 
     const onOnline = () => void get().sync();
     const onOffline = () => set({ status: "offline" });
-    const onVisible = () => document.visibilityState === "visible" && void get().sync();
+    // Mobile browsers may kill a hidden page without further events, so don't sit on
+    // debounced writes once we're hidden.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") return void get().sync();
+      if (persistTimer) writeLocal();
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+        void get().sync();
+      }
+    };
+    const onPageHide = () => persistTimer && writeLocal();
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pagehide", onPageHide);
     const interval = setInterval(() => {
       if (Object.keys(get().dirty).length || Object.keys(get().deletions).length) void get().sync();
     }, 30_000);
@@ -457,6 +477,7 @@ export const usePages = create<State>((set, get) => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pagehide", onPageHide);
       clearInterval(interval);
     };
 
