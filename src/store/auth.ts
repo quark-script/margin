@@ -1,13 +1,14 @@
 import { create } from "zustand";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-import { usePages } from "./pages";
+import { hasPending, usePages } from "./pages";
 
 type AuthState = {
   session: Session | null;
   ready: boolean;
   start: () => () => void;
-  signOut: () => Promise<void>;
+  /** Resolves false if the user cancelled because unsynced edits would be lost. */
+  signOut: () => Promise<boolean>;
 };
 
 export const useAuth = create<AuthState>((set) => ({
@@ -29,8 +30,16 @@ export const useAuth = create<AuthState>((set) => ({
 
   async signOut() {
     await usePages.getState().sync();
+    // reset() wipes this device's copy, so anything not yet on the server would be gone for good.
+    if (
+      hasPending() &&
+      !window.confirm("Some changes haven't synced yet and will be lost if you sign out now. Sign out anyway?")
+    ) {
+      return false;
+    }
     await usePages.getState().reset();
     await supabase.auth.signOut();
     set({ session: null });
+    return true;
   },
 }));
