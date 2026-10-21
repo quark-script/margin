@@ -32,7 +32,7 @@ export function SyncStatus({ compact = false }: { compact?: boolean }) {
     <button
       onClick={() => void sync()}
       title={title}
-      className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] hover:bg-hover ${tone}`}
+      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[12px] hover:bg-hover ${tone}`}
     >
       {icon}
       <span>{text}</span>
