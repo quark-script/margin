@@ -1,0 +1,211 @@
+import { useCallback, useRef, useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import {
+  ChevronsLeft,
+  FileText,
+  LogOut,
+  Monitor,
+  Moon,
+  Plus,
+  Search,
+  SquarePen,
+  Sun,
+  Trash2,
+} from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
+import { usePages } from "../store/pages";
+import { useUi } from "../store/ui";
+import { useAuth } from "../store/auth";
+import { useTheme, type ThemePref } from "../lib/theme";
+import { displayTitle } from "../lib/text";
+import { PageTree } from "./PageTree";
+import { IconButton, MenuDivider, MenuItem, Popover } from "./Menu";
+import { SyncStatus } from "./SyncStatus";
+
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+export const modKey = isMac ? "⌘" : "Ctrl";
+
+export function Sidebar({ onCollapse }: { onCollapse?: () => void }) {
+  const navigate = useNavigate();
+  const { setSwitcherOpen, setTrashOpen, setSidebarOpen } = useUi();
+  const favorites = usePages(
+    useShallow((s) =>
+      Object.values(s.pages)
+        .filter((p) => p.is_favorite && !p.is_archived)
+        .sort((a, b) => a.title.localeCompare(b.title))
+        .map((p) => p.id),
+    ),
+  );
+  const hasPages = usePages((s) => Object.values(s.pages).some((p) => !p.is_archived && !p.parent_id));
+  const loaded = usePages((s) => s.loaded);
+
+  const newPage = () => {
+    const id = usePages.getState().createPage(null);
+    setSidebarOpen(false);
+    navigate(`/p/${id}`);
+  };
+
+  return (
+    <nav className="flex h-full flex-col bg-side text-ink" aria-label="Pages">
+      <div className="flex items-center gap-1 px-2 pt-2 pb-1">
+        <AccountMenu />
+        {onCollapse && (
+          <IconButton label="Close sidebar" onClick={onCollapse}>
+            <ChevronsLeft size={17} />
+          </IconButton>
+        )}
+        <IconButton label="New page" onClick={newPage}>
+          <SquarePen size={16} />
+        </IconButton>
+      </div>
+
+      <div className="px-2 pb-2">
+        <SideRow icon={<Search size={16} />} onClick={() => setSwitcherOpen(true)} hint={`${modKey} K`}>
+          Search
+        </SideRow>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        {favorites.length > 0 && (
+          <section className="mb-4">
+            <SectionLabel>Favorites</SectionLabel>
+            {favorites.map((id) => (
+              <FavoriteRow key={id} id={id} />
+            ))}
+          </section>
+        )}
+
+        <section>
+          <div className="group flex items-center justify-between pr-1">
+            <SectionLabel>Pages</SectionLabel>
+            <IconButton
+              label="New page"
+              onClick={newPage}
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(pointer:coarse)]:opacity-100"
+            >
+              <Plus size={15} />
+            </IconButton>
+          </div>
+          <PageTree parentId={null} />
+          {loaded && !hasPages && (
+            <button
+              onClick={newPage}
+              className="mt-1 flex h-[30px] w-full items-center gap-2 rounded-md px-2 text-[14px] text-muted hover:bg-hover"
+            >
+              <Plus size={15} /> Add your first page
+            </button>
+          )}
+        </section>
+      </div>
+
+      <div className="safe-bottom border-t border-line px-2 py-2">
+        <div className="flex items-center justify-between">
+          <SideRow icon={<Trash2 size={16} />} onClick={() => setTrashOpen(true)}>
+            Trash
+          </SideRow>
+          <SyncStatus />
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <div className="px-2 pb-1 pt-1 text-[12px] font-medium text-muted">{children}</div>;
+}
+
+function SideRow({
+  icon,
+  children,
+  onClick,
+  hint,
+  className = "w-full",
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  onClick: () => void;
+  hint?: string;
+  className?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex h-[30px] items-center gap-2 rounded-md px-2 text-[14px] text-ink/75 [@media(pointer:coarse)]:h-9 hover:bg-hover hover:text-ink ${className}`}
+    >
+      <span className="text-muted">{icon}</span>
+      <span className="flex-1 text-left">{children}</span>
+      {hint && <span className="text-[12px] text-faint [@media(pointer:coarse)]:hidden">{hint}</span>}
+    </button>
+  );
+}
+
+function FavoriteRow({ id }: { id: string }) {
+  const page = usePages((s) => s.pages[id]);
+  const setSidebarOpen = useUi((s) => s.setSidebarOpen);
+  if (!page) return null;
+  return (
+    <NavLink
+      to={`/p/${id}`}
+      onClick={() => setSidebarOpen(false)}
+      className={({ isActive }) =>
+        `flex h-[30px] items-center gap-2 rounded-md px-2 text-[14px] hover:bg-hover ${
+          isActive ? "bg-press font-medium text-ink" : "text-ink/80"
+        }`
+      }
+    >
+      <span className="flex w-5 justify-center text-[15px] leading-none">
+        {page.icon || <FileText size={16} className="text-faint" strokeWidth={1.75} />}
+      </span>
+      <span className="truncate">{displayTitle(page.title)}</span>
+    </NavLink>
+  );
+}
+
+function AccountMenu() {
+  const btn = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const email = useAuth((s) => s.session?.user.email ?? "");
+  const signOut = useAuth((s) => s.signOut);
+  const { pref, setPref } = useTheme();
+  const initial = (email[0] ?? "N").toUpperCase();
+
+  const themeItem = (value: ThemePref, label: string, icon: React.ReactNode) => (
+    <MenuItem icon={icon} onClick={() => setPref(value)} hint={pref === value ? "✓" : undefined}>
+      {label}
+    </MenuItem>
+  );
+
+  return (
+    <>
+      <button
+        ref={btn}
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left hover:bg-hover"
+      >
+        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[5px] bg-ink text-[12px] font-semibold text-paper">
+          {initial}
+        </span>
+        <span className="truncate text-[14px] font-medium">Notes</span>
+      </button>
+      <Popover anchor={btn.current} open={open} onClose={close} width={240}>
+        <div className="truncate px-2 py-1.5 text-[12px] text-muted">{email}</div>
+        <MenuDivider />
+        {themeItem("system", "System theme", <Monitor size={15} />)}
+        {themeItem("light", "Light", <Sun size={15} />)}
+        {themeItem("dark", "Dark", <Moon size={15} />)}
+        <MenuDivider />
+        <MenuItem
+          icon={<LogOut size={15} />}
+          onClick={() => {
+            close();
+            void signOut();
+          }}
+        >
+          Sign out
+        </MenuItem>
+      </Popover>
+    </>
+  );
+}
+

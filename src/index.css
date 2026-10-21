@@ -1,0 +1,187 @@
+@import "@fontsource-variable/geist";
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --paper: #fbfbfa;
+  --ink: #1e1f22;
+  --muted: #73767d;
+  --faint: #a3a6ac;
+  --line: #ebebe8;
+  --side: #f5f5f3;
+  --hover: rgba(30, 31, 34, 0.055);
+  --press: rgba(30, 31, 34, 0.09);
+  --accent: #2f6feb;
+  --accent-soft: rgba(47, 111, 235, 0.14);
+  --danger: #c4372b;
+  --pop: #ffffff;
+  --pop-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 6px 18px rgba(15, 15, 15, 0.1);
+}
+
+.dark {
+  --paper: #191919;
+  --ink: #e8e8e6;
+  --muted: #9b9b98;
+  --faint: #6b6b69;
+  --line: #2b2b2a;
+  --side: #202020;
+  --hover: rgba(255, 255, 255, 0.06);
+  --press: rgba(255, 255, 255, 0.1);
+  --accent: #5b8ff5;
+  --accent-soft: rgba(91, 143, 245, 0.2);
+  --danger: #ef6f62;
+  --pop: #252525;
+  --pop-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-side: var(--side);
+  --color-hover: var(--hover);
+  --color-press: var(--press);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-pop: var(--pop);
+  --shadow-pop: var(--pop-shadow);
+}
+
+@layer base {
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* Thin, quiet scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+}
+
+/* ---------- BlockNote: blend the editor into the page ---------- */
+.bn-container.bn-container[data-color-scheme],
+.bn-container.bn-container[data-color-scheme="dark"],
+.bn-container.bn-container[data-color-scheme="light"] {
+  --bn-colors-editor-background: transparent;
+  --bn-colors-editor-text: var(--ink);
+  --bn-colors-menu-background: var(--pop);
+  --bn-colors-menu-text: var(--ink);
+  --bn-colors-tooltip-background: var(--ink);
+  --bn-colors-tooltip-text: var(--paper);
+  --bn-colors-hovered-background: var(--hover);
+  --bn-colors-selected-background: var(--press);
+  --bn-colors-side-menu: var(--faint);
+  --bn-colors-border: var(--line);
+  --bn-colors-shadow: transparent;
+  --bn-font-family: var(--font-sans);
+  --bn-border-radius: 6px;
+}
+
+.bn-container .bn-editor {
+  background: transparent !important;
+  padding-inline: 54px !important;
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.bn-block-content[data-content-type="heading"] {
+  letter-spacing: -0.015em;
+}
+.bn-container [data-content-type="heading"] {
+  --level: 1.75em;
+  padding-top: 14px;
+  font-weight: 650;
+}
+.bn-container [data-content-type="heading"][data-level="2"] {
+  --level: 1.4em;
+}
+.bn-container [data-content-type="heading"][data-level="3"] {
+  --level: 1.18em;
+}
+.bn-container [data-prev-level="1"] {
+  --prev-level: 1.75em;
+}
+.bn-container [data-prev-level="2"] {
+  --prev-level: 1.4em;
+}
+.bn-container [data-prev-level="3"] {
+  --prev-level: 1.18em;
+}
+
+.bn-inline-content:has(> .ProseMirror-trailingBreak:only-child)::before {
+  color: var(--faint) !important;
+}
+
+/* Give the drag handle room on desktop; hide it on touch where it's unusable */
+@media (pointer: coarse) {
+  .bn-side-menu {
+    display: none !important;
+  }
+}
+@media (max-width: 640px) {
+  .bn-editor {
+    padding-inline: 0 !important;
+  }
+}
+
+.page-title {
+  font-size: 40px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+@media (max-width: 640px) {
+  .page-title {
+    font-size: 32px;
+  }
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
