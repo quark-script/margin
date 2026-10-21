@@ -147,10 +147,19 @@ export const usePages = create<State>((set, get) => {
     }
 
     if (full) {
-      // Detect pages deleted on another device.
-      const { data, error } = await supabase.from("pages").select("id");
-      if (error) throw error;
-      const remoteIds = new Set((data ?? []).map((r: { id: string }) => r.id));
+      // Detect pages deleted on another device. Keyset-paged: the API caps a response at 1000 rows,
+      // and a truncated list would make every page past the cap look deleted.
+      const remoteIds = new Set<string>();
+      for (let after: string | null = null; ; ) {
+        let q = supabase.from("pages").select("id").order("id").limit(pageSize);
+        if (after) q = q.gt("id", after);
+        const { data, error } = await q;
+        if (error) throw error;
+        const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+        ids.forEach((id) => remoteIds.add(id));
+        if (ids.length < pageSize) break;
+        after = ids[ids.length - 1];
+      }
       const { pages, dirty } = get();
       const gone = Object.keys(pages).filter((id) => !remoteIds.has(id) && !dirty[id]);
       if (gone.length) removeLocal(gone);
