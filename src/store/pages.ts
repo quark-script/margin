@@ -226,22 +226,33 @@ export const usePages = create<State>((set, get) => {
         };
       });
 
-      const { data, error } = await supabase
-        .from("pages")
-        .upsert(rows, { onConflict: "id" })
-        .select("id,updated_at,archived_at");
+      const upsert = (r: typeof rows) =>
+        supabase.from("pages").upsert(r, { onConflict: "id" }).select("id,updated_at,archived_at");
+      let { data, error } = await upsert(rows);
 
-      if (error) {
-        // Parent was deleted elsewhere (FK) or isn't ours (RLS): re-home the page at the root.
-        if (error.code === "23503" || error.code === "42501") {
-          const fixed = { ...get().pages };
-          batchIds.forEach((id) => {
-            if (fixed[id]?.parent_id) fixed[id] = { ...fixed[id], parent_id: null };
-          });
-          set({ pages: fixed });
+      // Parent was deleted elsewhere (FK) or isn't ours (RLS). One bad row fails the whole batch,
+      // so retry row by row and re-home only the rows that fail at the root; they go up next sync.
+      const orphanError = (e: { code?: string } | null) => e?.code === "23503" || e?.code === "42501";
+      let orphaned = false;
+      if (orphanError(error)) {
+        data = [];
+        error = null;
+        for (const row of rows) {
+          const res = await upsert([row]);
+          const p = get().pages[row.id];
+          if (orphanError(res.error) && p?.parent_id) {
+            set({ pages: { ...get().pages, [row.id]: { ...p, parent_id: null } } });
+            orphaned = true;
+          } else if (res.error) {
+            error = res.error;
+            break;
+          } else {
+            data.push(...(res.data ?? []));
+          }
         }
-        throw error;
       }
+      if (error) throw error;
+      if (orphaned) syncAgain = true;
 
       const nextPages = { ...get().pages };
       const nextDirty = { ...get().dirty };
@@ -253,6 +264,8 @@ export const usePages = create<State>((set, get) => {
         }
       }
       set({ pages: nextPages, dirty: nextDirty });
+      // Children of a re-homed page would fail the same way; let the next sync take them.
+      if (orphaned) return;
     }
   };
 
