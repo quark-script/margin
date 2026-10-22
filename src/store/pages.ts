@@ -34,6 +34,8 @@ type State = {
   createPage: (parentId: string | null, patch?: Partial<Page>) => string;
   updatePage: (id: string, patch: Partial<Page>) => void;
   setContent: (id: string, content: Block[]) => void;
+  /** Put back an earlier version: replaces title, icon and content and reloads the open editor. */
+  restoreVersion: (id: string, v: Pick<Page, "title" | "icon" | "content">) => void;
   archivePage: (id: string) => void;
   restorePage: (id: string) => void;
   deleteForever: (id: string) => void;
@@ -390,6 +392,22 @@ export const usePages = create<State>((set, get) => {
       markDirty([id]);
       persist();
       scheduleFlush();
+    },
+
+    restoreVersion(id, v) {
+      const p = get().pages[id];
+      if (!p) return;
+      const content = v.content ?? [];
+      set({
+        pages: {
+          ...get().pages,
+          [id]: { ...p, title: v.title, icon: v.icon, content, search_text: blocksToText(content), updated_at: nowIso() },
+        },
+        revs: { ...get().revs, [id]: (get().revs[id] ?? 0) + 1 },
+      });
+      markDirty([id]);
+      persist();
+      scheduleFlush(0);
     },
 
     archivePage(id) {

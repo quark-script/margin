@@ -8,6 +8,7 @@ import {
   Download,
   FileText,
   Globe,
+  History,
   MoreHorizontal,
   Plus,
   Star,
@@ -141,6 +142,9 @@ export function PageMenu({ id, align = "start" }: { id: string; align?: "start" 
         </MenuItem>
         <MenuItem icon={<CornerUpRight size={15} />} onClick={act(() => useUi.getState().setMoveId(id))}>
           Move to
+        </MenuItem>
+        <MenuItem icon={<History size={15} />} onClick={act(() => useUi.getState().setHistoryId(id))}>
+          Version history
         </MenuItem>
         <MenuDivider />
         <MenuItem icon={<ClipboardCopy size={15} />} onClick={act(() => copyMarkdown(id))}>

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { usePages } from "../store/pages";
 import { useUi } from "../store/ui";
@@ -6,9 +6,12 @@ import { Sidebar } from "./Sidebar";
 import { MovePicker, QuickSwitcher } from "./QuickSwitcher";
 import { TrashPanel } from "./TrashPanel";
 
+const HistoryPanel = lazy(() => import("./HistoryPanel").then((m) => ({ default: m.HistoryPanel })));
+
 export function AppShell() {
   const { sidebarOpen, sidebarCollapsed, setSidebarOpen, toggleCollapsed, setSwitcherOpen } = useUi();
   const navigate = useNavigate();
+  const historyOpen = useUi((s) => s.historyId !== null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -74,6 +77,11 @@ export function AppShell() {
       <QuickSwitcher />
       <MovePicker />
       <TrashPanel />
+      {historyOpen && (
+        <Suspense fallback={null}>
+          <HistoryPanel />
+        </Suspense>
+      )}
       <Notice />
     </div>
   );
