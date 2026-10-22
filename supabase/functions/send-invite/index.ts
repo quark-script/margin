@@ -4,7 +4,7 @@
 // tells the owner to send the link themselves.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://margin-murex-seven.vercel.app";
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://margin.dhanpulse.in";
 const FROM = Deno.env.get("INVITE_FROM") ?? "Margin <margin@dhanpulse.in>";
 const DAILY_LIMIT = 50; // per person inviting, against using this to send spam
 const RESEND_GAP_MS = 10 * 60_000;

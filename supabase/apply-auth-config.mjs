@@ -3,13 +3,13 @@
 //   SUPABASE_ACCESS_TOKEN=sbp_... node supabase/apply-auth-config.mjs
 //
 // Create a token at https://supabase.com/dashboard/account/tokens. Optional:
-// PROJECT_REF and SITE_URL. The redirect URLs become Margin's address only.
+// PROJECT_REF and SITE_URL. The redirect URLs become Margin's addresses only.
 
 import { readFile } from "node:fs/promises";
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 const ref = process.env.PROJECT_REF || "ykowlfymtwzirnzwiiov";
-const site = (process.env.SITE_URL || "https://margin-murex-seven.vercel.app").replace(/\/$/, "");
+const site = (process.env.SITE_URL || "https://margin.dhanpulse.in").replace(/\/$/, "");
 if (!token) {
   console.error("Set SUPABASE_ACCESS_TOKEN first.");
   process.exit(1);
@@ -33,8 +33,9 @@ if (!res.ok) {
 }
 const current = await res.json();
 
-// Auth emails and Google sign-in may only send people back to Margin.
-const allow = [`${site}/**`];
+// Auth emails and Google sign-in may only send people back to Margin: its domain, and the
+// Vercel address it also answers on.
+const allow = [site, "https://margin-murex-seven.vercel.app"].map((u) => `${u}/**`);
 
 const body = { site_url: site, uri_allow_list: allow.join(",") };
 for (const [key, file, subject] of templates) {
