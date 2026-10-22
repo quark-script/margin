@@ -33,7 +33,7 @@ export const authLinkErrorCode = (() => {
   return p ? (p.get("error_code") ?? p.get("error") ?? "unknown") : null;
 })();
 
-// All app tables live in the `notes` schema (shared project with upkeep).
+// All app tables live in the `notes` schema.
 export const supabase = createClient(url, key, {
   db: { schema: "notes" },
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },

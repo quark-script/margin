@@ -50,12 +50,6 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  // Deleting the sign-in would also delete another app's rows for this person (their foreign
-  // keys cascade), so stop before touching anything while one still has them.
-  const { data: inUse, error: checkError } = await admin.rpc("has_other_app_data", { p_user: user.id });
-  if (checkError) return fail("check other apps", checkError);
-  if (inUse) return json({ error: "in_use" }, 409);
-
   // 1. Images. The list comes back up to 1000 at a time, so repeat until it's empty.
   for (let round = 0; round < 100; round++) {
     const { data: files, error } = await admin.rpc("account_files", { p_user: user.id });

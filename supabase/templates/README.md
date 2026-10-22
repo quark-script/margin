@@ -18,6 +18,6 @@ these subjects:
 | Change email address | `change-email.html` | Confirm your new email for Margin |
 | Invite user | `invite.html` | You're invited to Margin |
 
-The project is shared with upkeep, so these templates apply to its emails too. Links
-go straight to Margin's `/auth/confirm` only when the request came from Margin
-(its redirect equals the Site URL); anything else gets Supabase's standard link.
+Links go straight to Margin's `/auth/confirm` when the request's redirect is the
+Site URL, which is how the app sends them; anything else gets Supabase's standard
+link.

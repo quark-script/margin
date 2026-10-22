@@ -3,7 +3,7 @@
 //   SUPABASE_ACCESS_TOKEN=sbp_... node supabase/apply-auth-config.mjs
 //
 // Create a token at https://supabase.com/dashboard/account/tokens. Optional:
-// PROJECT_REF and SITE_URL. Existing redirect URLs are kept.
+// PROJECT_REF and SITE_URL. The redirect URLs become Margin's address only.
 
 import { readFile } from "node:fs/promises";
 
@@ -33,12 +33,10 @@ if (!res.ok) {
 }
 const current = await res.json();
 
-// Keep every existing redirect URL, including the old Site URL, so other apps on this project still work.
-const allow = new Set((current.uri_allow_list || "").split(",").map((u) => u.trim()).filter(Boolean));
-if (current.site_url && current.site_url.replace(/\/$/, "") !== site) allow.add(`${current.site_url.replace(/\/$/, "")}/**`);
-allow.add(`${site}/**`);
+// Auth emails and Google sign-in may only send people back to Margin.
+const allow = [`${site}/**`];
 
-const body = { site_url: site, uri_allow_list: [...allow].join(",") };
+const body = { site_url: site, uri_allow_list: allow.join(",") };
 for (const [key, file, subject] of templates) {
   body[`mailer_subjects_${key}`] = subject;
   body[`mailer_templates_${key}_content`] = await readFile(new URL(`./templates/${file}`, import.meta.url), "utf8");
@@ -51,6 +49,6 @@ if (!put.ok) {
 }
 
 console.log(`Site URL: ${current.site_url || "(none)"} -> ${site}`);
-console.log(`Redirect URLs: ${[...allow].join(", ")}`);
+console.log(`Redirect URLs: ${current.uri_allow_list || "(none)"} -> ${allow.join(", ")}`);
 console.log(`Templates: ${templates.length} uploaded`);
 console.log(`Sign-ups are ${current.disable_signup ? "still closed" : "open"}.`);

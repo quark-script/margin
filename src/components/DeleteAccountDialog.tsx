@@ -43,12 +43,7 @@ export function DeleteAccountDialog({ onClose, onExport }: { onClose: () => void
     const { error } = await supabase.functions.invoke("delete-account", { body: { confirm: typed.trim() } });
     if (error) {
       setBusy(false);
-      const inUse = (error as { context?: Response }).context?.status === 409;
-      return setError(
-        inUse
-          ? "This sign-in is also used by another app, so it can't be deleted here."
-          : "Couldn't finish deleting your account. Try again.",
-      );
+      return setError("Couldn't finish deleting your account. Try again.");
     }
     await finishDeletion();
   };
