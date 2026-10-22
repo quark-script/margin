@@ -4,6 +4,7 @@ import { useAuth } from "../store/auth";
 import { useTheme } from "../lib/theme";
 import { Captcha, CAPTCHA_SITE_KEY } from "../components/Captcha";
 import { rememberNext } from "../lib/next";
+import { googleEnabled, googleLastKnown, signInWithGoogle } from "../lib/oauth";
 
 type Mode = "signin" | "signup" | "forgot" | "sent";
 
@@ -48,11 +49,11 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
 
 const EXPIRED_LINK = "That link has expired or was already used. Request a new one.";
 
-/** Supabase sends expired or used email links back with the reason in the URL hash. */
+/** Supabase sends failed email links and Google sign-ins back with the reason in the URL. */
 function linkError(): string | null {
   if (!authLinkErrorCode) return null;
-  if (window.location.hash) history.replaceState(null, "", window.location.pathname);
-  return authLinkErrorCode === "otp_expired" ? EXPIRED_LINK : "That link didn't work. Request a new one.";
+  history.replaceState(null, "", window.location.pathname);
+  return authLinkErrorCode === "otp_expired" ? EXPIRED_LINK : "That didn't work. Please try again.";
 }
 
 export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
@@ -73,6 +74,10 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
   const [captcha, setCaptcha] = useState<string | null>(null);
   const [captchaReset, setCaptchaReset] = useState(0);
   const isDark = useTheme((s) => s.isDark);
+  const [google, setGoogle] = useState(googleLastKnown);
+  useEffect(() => {
+    void googleEnabled().then(setGoogle);
+  }, []);
   const linkFailed = useAuth((s) => s.linkFailed);
   useEffect(() => {
     if (linkFailed) setError(EXPIRED_LINK);
@@ -161,9 +166,38 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
   const subtitle = returnTo && mode !== "forgot" ? returnHint : defaultSubtitle;
   const cta = { signin: "Sign in", signup: "Create account", forgot: "Send reset link" }[mode];
 
+  const withGoogle = google && mode !== "forgot";
+  const continueWithGoogle = async () => {
+    setBusy(true);
+    setError(null);
+    const { error } = await signInWithGoogle(); // on success the browser is already on its way to Google
+    if (error) {
+      setBusy(false);
+      setError(friendlyError(error.message));
+    }
+  };
+
   return (
     <Shell title={title} subtitle={subtitle}>
-      <form onSubmit={submit} className="mt-7 space-y-3">
+      {withGoogle && (
+        <>
+          <button
+            type="button"
+            onClick={() => void continueWithGoogle()}
+            disabled={busy}
+            className="mt-7 flex h-10 w-full items-center justify-center gap-2.5 rounded-md text-[15px] font-medium text-ink ring-1 ring-line ring-inset hover:bg-hover disabled:opacity-50"
+          >
+            <GoogleLogo />
+            Continue with Google
+          </button>
+          <div className="mt-5 flex items-center gap-3 text-[12px] text-faint">
+            <span className="h-px flex-1 bg-line" />
+            or
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
+      <form onSubmit={submit} className={`${withGoogle ? "mt-5" : "mt-7"} space-y-3`}>
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-medium text-ink">Email</span>
           <input
@@ -233,6 +267,17 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
         )}
       </p>
     </Shell>
+  );
+}
+
+function GoogleLogo() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z" />
+    </svg>
   );
 }
 

@@ -25,10 +25,12 @@ export const emailLink = (() => {
 // PASSWORD_RECOVERY event can fire before anyone has subscribed, so it can't be relied on alone.
 export const recoveryInUrl = /[#&]type=recovery\b/.test(window.location.hash) || emailLink?.type === "recovery";
 
-/** An expired or already-used email link comes back with the reason in the hash; same timing. */
+/** An expired or used email link, or a cancelled Google sign-in, comes back with the reason in the URL; same timing. */
 export const authLinkErrorCode = (() => {
   const h = new URLSearchParams(window.location.hash.slice(1));
-  return h.get("error") ? (h.get("error_code") ?? "unknown") : null;
+  const q = new URLSearchParams(window.location.search);
+  const p = h.get("error") ? h : q.get("error") ? q : null;
+  return p ? (p.get("error_code") ?? p.get("error") ?? "unknown") : null;
 })();
 
 // All app tables live in the `notes` schema (shared project with upkeep).

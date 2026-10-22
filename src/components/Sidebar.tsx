@@ -261,6 +261,13 @@ function AccountMenu() {
       return `Imported ${res.pages} page${res.pages === 1 ? "" : "s"}.${missing}`;
     });
   const initial = (email[0] ?? "N").toUpperCase();
+  // Google accounts come with a name and photo.
+  const meta = useAuth((s) => s.session?.user.user_metadata) as { full_name?: string; name?: string; avatar_url?: string } | undefined;
+  const name = meta?.full_name?.trim() || meta?.name?.trim() || "";
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photo = !photoFailed ? meta?.avatar_url : undefined;
+  // Signed up with Google only: there's no password yet, so offer to set one.
+  const hasPassword = useAuth((s) => s.session?.user.identities?.some((i) => i.provider === "email") ?? true);
 
   const themeItem = (value: ThemePref, label: string, icon: React.ReactNode) => (
     <MenuItem icon={icon} onClick={() => setPref(value)} hint={pref === value ? "✓" : undefined}>
@@ -275,13 +282,26 @@ function AccountMenu() {
         onClick={() => setOpen((v) => !v)}
         className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left hover:bg-hover"
       >
-        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[5px] bg-ink text-[12px] font-semibold text-paper">
-          {initial}
-        </span>
+        {photo ? (
+          <img
+            src={photo}
+            alt=""
+            referrerPolicy="no-referrer"
+            onError={() => setPhotoFailed(true)}
+            className="h-[22px] w-[22px] shrink-0 rounded-[5px] object-cover"
+          />
+        ) : (
+          <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[5px] bg-ink text-[12px] font-semibold text-paper">
+            {initial}
+          </span>
+        )}
         <span className="truncate text-[14px] font-medium">Margin</span>
       </button>
       <Popover anchor={btn.current} open={open} onClose={close} width={240}>
-        <div className="truncate px-2 py-1.5 text-[12px] text-muted">{email}</div>
+        <div className="px-2 py-1.5">
+          {name && <div className="truncate text-[13px] font-medium text-ink">{name}</div>}
+          <div className="truncate text-[12px] text-muted">{email}</div>
+        </div>
         <MenuDivider />
         {themeItem("system", "System theme", <Monitor size={15} />)}
         {themeItem("light", "Light", <Sun size={15} />)}
@@ -301,7 +321,7 @@ function AccountMenu() {
             changePassword();
           }}
         >
-          Change password
+          {hasPassword ? "Change password" : "Set a password"}
         </MenuItem>
         <MenuItem
           icon={<LogOut size={15} />}
