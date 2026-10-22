@@ -3,6 +3,7 @@ import { authLinkErrorCode, SITE_URL, supabase } from "../lib/supabase";
 import { useAuth } from "../store/auth";
 import { useTheme } from "../lib/theme";
 import { Captcha, CAPTCHA_SITE_KEY } from "../components/Captcha";
+import { rememberNext } from "../lib/next";
 
 type Mode = "signin" | "signup" | "forgot" | "sent";
 
@@ -56,6 +57,8 @@ function linkError(): string | null {
 
 export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
   const [mode, setMode] = useState<Mode>(initialMode);
+  // Arrived from "Sign in to edit" on a shared page: go back there afterwards.
+  const [fromShare] = useState(() => !!rememberNext(new URLSearchParams(window.location.search).get("next")));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -143,7 +146,8 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
     signup: ["Create your account", "Notes that work offline and sync everywhere."],
     forgot: ["Reset your password", "We'll email you a link to set a new password."],
   };
-  const [title, subtitle] = titles[mode];
+  const [title, defaultSubtitle] = titles[mode];
+  const subtitle = fromShare && mode !== "forgot" ? "Sign in or create an account to edit the shared page." : defaultSubtitle;
   const cta = { signin: "Sign in", signup: "Create account", forgot: "Send reset link" }[mode];
 
   return (

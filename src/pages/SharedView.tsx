@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { FileText } from "lucide-react";
+import { useAuth } from "../store/auth";
 import { useTheme } from "../lib/theme";
 import { blocksToText, displayTitle } from "../lib/text";
 import { MEDIA_PREFIX } from "../lib/supabase";
@@ -30,7 +31,8 @@ export function SharedView() {
   const [tree, setTree] = useState<SharedTree | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [revs, setRevs] = useState<Record<string, number>>({});
-  const [holders, setHolders] = useState<Record<string, string>>({});
+  const [holders, setHolders] = useState<Record<string, { editor: string; name?: string | null }>>({});
+  const session = useAuth((s) => s.session);
   const [saveError, setSaveError] = useState<string | null>(null);
   const known = useRef<Record<string, string>>({}); // page id -> updated_at we last loaded
 
@@ -55,8 +57,13 @@ export function SharedView() {
 
   const pages = useMemo(() => Object.fromEntries((tree?.pages ?? []).map((p) => [p.id, p])), [tree]);
   const current: SharedPage | undefined = tree ? pages[pageId ?? tree.root_id] : undefined;
-  const canEdit = Boolean(tree?.can_edit);
-  const lock = useEditLock(current?.id ?? "", token, canEdit && Boolean(current), holders[current?.id ?? ""] ?? null);
+  const linkCanEdit = Boolean(tree?.can_edit);
+  // Editing through a link needs an account; without one the page is read-only with a sign-in prompt.
+  const canEdit = linkCanEdit && Boolean(session);
+  const holder = holders[current?.id ?? ""] ?? null;
+  const lock = useEditLock(current?.id ?? "", token, canEdit && Boolean(current), holder?.editor ?? null);
+  const accessToken = useRef<string | null>(null);
+  accessToken.current = session?.access_token ?? null;
   const holdingRef = useRef(false);
   holdingRef.current = lock.holding;
 
@@ -69,7 +76,7 @@ export function SharedView() {
         const s = await fetchSharedState(token);
         if (!alive) return;
         if (!s) return setTree(null);
-        setHolders(Object.fromEntries(s.locks.map((l) => [l.page_id, l.editor])));
+        setHolders(Object.fromEntries(s.locks.map((l) => [l.page_id, { editor: l.editor, name: l.name }])));
         const changed = s.pages.filter((p) => known.current[p.id] !== p.updated_at).map((p) => p.id);
         const membership = s.pages.length !== Object.keys(known.current).length;
         const skip = holdingRef.current && current ? current.id : null;
@@ -111,7 +118,7 @@ export function SharedView() {
       if (timer.current) clearTimeout(timer.current);
       const p = pending.current;
       pending.current = null;
-      if (p) saveSharedOnExit(token, p.id, p.blocks, blocksToText(p.blocks));
+      if (p && accessToken.current) saveSharedOnExit(token, p.id, p.blocks, blocksToText(p.blocks), accessToken.current);
     };
     window.addEventListener("pagehide", onHide);
     return () => {
@@ -163,7 +170,9 @@ export function SharedView() {
     .filter((p) => p.parent_id === current.id)
     .sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at));
 
-  const status = !canEdit ? "View only" : lock.heldByOther ? "Someone else is editing" : lock.holding ? "Editing" : "Can edit";
+  const editingName = holder?.name ? `${holder.name} is editing` : "Someone else is editing";
+  const status = !linkCanEdit ? "View only" : lock.heldByOther ? editingName : lock.holding ? "Editing" : "Can edit";
+  const signInHref = `/login?next=${encodeURIComponent(`/s/${token}${pageId ? `/${pageId}` : ""}`)}`;
 
   return (
     <PageLinkContext.Provider value={resolveLink}>
@@ -184,9 +193,19 @@ export function SharedView() {
                 </span>
               ))}
             </nav>
-            <span className={`shrink-0 rounded-md px-2 py-0.5 text-[12px] ${lock.heldByOther ? "text-muted" : "text-faint"}`}>
-              {status}
-            </span>
+            {linkCanEdit && !session ? (
+              // A full page load: the sign-in screen lives outside this shared-page router.
+              <a
+                href={signInHref}
+                className="shrink-0 rounded-md bg-ink px-2.5 py-1 text-[13px] font-medium text-paper hover:opacity-90"
+              >
+                Sign in to edit
+              </a>
+            ) : (
+              <span className={`shrink-0 rounded-md px-2 py-0.5 text-[12px] ${lock.heldByOther ? "text-muted" : "text-faint"}`}>
+                {status}
+              </span>
+            )}
           </div>
         </header>
 

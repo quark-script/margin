@@ -34,7 +34,7 @@ export type SharedTree = { can_edit: boolean; root_id: string; pages: SharedPage
 export type SharedState = {
   can_edit: boolean;
   pages: { id: string; updated_at: string }[];
-  locks: { page_id: string; editor: string }[];
+  locks: { page_id: string; editor: string; name?: string | null }[];
 };
 
 async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
@@ -76,14 +76,22 @@ export const saveShared = (token: string, pageId: string, content: Block[], sear
     p_search_text: searchText,
   });
 
-/** pagehide variant of saveShared (see unlockPageOnExit). Browsers cap keepalive bodies at 64 KB. */
-export function saveSharedOnExit(token: string, pageId: string, content: Block[], searchText: string) {
+/**
+ * pagehide variant of saveShared (see unlockPageOnExit). Saving needs the editor's sign-in, so
+ * the access token goes along. Browsers cap keepalive bodies at 64 KB.
+ */
+export function saveSharedOnExit(token: string, pageId: string, content: Block[], searchText: string, accessToken: string) {
   const body = JSON.stringify({ p_token: token, p_page_id: pageId, p_editor: editorId, p_content: content, p_search_text: searchText });
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
   void fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/shared_save`, {
     method: "POST",
     keepalive: body.length < 60_000,
-    headers: { apikey: key, "Content-Type": "application/json", "Content-Profile": "notes" },
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "Content-Profile": "notes",
+    },
     body,
   }).catch(() => {});
 }

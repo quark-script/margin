@@ -9,6 +9,7 @@ import { PageView } from "./pages/PageView";
 import { SharedView } from "./pages/SharedView";
 import { Landing } from "./pages/Landing";
 import { authLinkErrorCode } from "./lib/supabase";
+import { takeNext } from "./lib/next";
 
 let reopenedLastPage = false;
 
@@ -43,6 +44,12 @@ export default function App() {
   const signedOut = useAuth((s) => s.signedOut);
 
   useEffect(() => start(), [start]);
+
+  // Signed in from "Sign in to edit": back to the shared page.
+  useEffect(() => {
+    const next = session && !location.pathname.startsWith("/s/") ? takeNext() : null;
+    if (next) location.replace(next);
+  }, [session]);
 
   if (!ready) return null;
   if (session && recovering) return <SetPassword />;
