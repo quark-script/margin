@@ -12,6 +12,7 @@ import { EmojiPicker, randomEmoji } from "../components/EmojiPicker";
 import { IconButton, Popover } from "../components/Menu";
 import { PageMenu } from "../components/PageTree";
 import { TopBar } from "../components/TopBar";
+import { EditorBoundary } from "../components/EditorBoundary";
 
 const Editor = lazy(() => import("../components/Editor").then((m) => ({ default: m.Editor })));
 
@@ -114,6 +115,7 @@ export function PageView() {
             }}
           />
           <div className="mt-2 sm:-mx-[54px]">
+            <EditorBoundary key={`${page.id}:${rev}`} fallbackText={page.search_text}>
             <Suspense fallback={<div className="h-7 sm:px-[54px]" />}>
             <Editor
               key={`${page.id}:${rev}`}
@@ -132,6 +134,7 @@ export function PageView() {
               }}
             />
             </Suspense>
+            </EditorBoundary>
           </div>
           {!trashed && <SubPages pageId={page.id} />}
           <Backlinks pageId={page.id} />

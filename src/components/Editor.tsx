@@ -22,6 +22,34 @@ const schema = BlockNoteSchema.create({
 });
 type Ed = typeof schema.BlockNoteEditor;
 
+/**
+ * Content written by a newer version of the app can contain block or inline types this
+ * version doesn't know, and the editor refuses to open such a document. Show unknown blocks
+ * as paragraphs and unknown inline content as text instead.
+ */
+function toKnownContent(blocks: Block[]): Block[] {
+  const blockTypes = new Set(Object.keys(schema.blockSchema));
+  const inlineTypes = new Set([...Object.keys(schema.inlineContentSchema), "text", "link"]);
+  const inline = (c: unknown): unknown => {
+    if (!Array.isArray(c)) return c;
+    return c.map((n) => {
+      const node = n as { type?: string; text?: string; content?: unknown };
+      if (!node || typeof node !== "object" || inlineTypes.has(node.type ?? "")) return n;
+      return { type: "text", text: typeof node.text === "string" ? node.text : "", styles: {} };
+    });
+  };
+  return blocks.map((b) => {
+    const known = blockTypes.has(b.type ?? "paragraph");
+    const content = Array.isArray(b.content) ? inline(b.content) : known ? b.content : undefined;
+    return {
+      ...b,
+      ...(known ? {} : { type: "paragraph", props: {} }),
+      content,
+      children: b.children ? toKnownContent(b.children) : b.children,
+    } as Block;
+  });
+}
+
 const LINK_TRIGGER = "[[";
 
 function insertPageLink(editor: Ed, pageId: string) {
@@ -126,7 +154,7 @@ export function Editor({ pageId, rev, initialContent, isDark, editable, onChange
   const editor = useCreateBlockNote(
     {
       schema,
-      initialContent: initialContent.length ? (initialContent as PartialBlock<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>[]) : undefined,
+      initialContent: initialContent.length ? (toKnownContent(initialContent) as unknown as PartialBlock<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>[]) : undefined,
       uploadFile,
       resolveFileUrl,
       animations: false,
