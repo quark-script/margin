@@ -5,7 +5,7 @@ import {
   ClipboardCopy,
   Copy,
   CornerUpRight,
-  Download,
+  FileDown,
   FileText,
   Globe,
   History,
@@ -21,7 +21,6 @@ import { childrenOf, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { displayTitle } from "../lib/text";
 import { useShares } from "../store/shares";
-import { download } from "../lib/download";
 import { IconButton, MenuDivider, MenuItem, Popover } from "./Menu";
 
 export function PageTree({ parentId, depth = 0 }: { parentId: string | null; depth?: number }) {
@@ -156,8 +155,8 @@ export function PageMenu({ id, align = "start" }: { id: string; align?: "start" 
         <MenuItem icon={<ClipboardCopy size={15} />} onClick={act(() => copyMarkdown(id))}>
           Copy as Markdown
         </MenuItem>
-        <MenuItem icon={<Download size={15} />} onClick={act(() => exportMarkdown(id))}>
-          Export as Markdown
+        <MenuItem icon={<FileDown size={15} />} onClick={act(() => savePdf(id))}>
+          Export as PDF
         </MenuItem>
         <MenuDivider />
         <MenuItem
@@ -187,18 +186,15 @@ function copyMarkdown(id: string) {
     .catch(() => text.then((t) => navigator.clipboard.writeText(t)))
     .then(
       () => notify("Copied as Markdown."),
-      () => notify("Couldn't copy. Try Export as Markdown."),
+      () => notify("Couldn't copy to the clipboard."),
     );
 }
 
-async function exportMarkdown(id: string) {
-  const { notify } = useUi.getState();
+async function savePdf(id: string) {
   try {
-    const { exportPages } = await import("../lib/markdown");
-    const res = await exportPages(id);
-    download(res.blob, res.filename);
-    if (res.missingImages) notify(`${res.missingImages} image(s) couldn't be downloaded.`);
+    const { exportPdf } = await import("../lib/pdf");
+    await exportPdf(id);
   } catch (err) {
-    notify(err instanceof Error ? err.message : String(err));
+    useUi.getState().notify(err instanceof Error ? err.message : String(err));
   }
 }

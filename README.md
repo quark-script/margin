@@ -15,6 +15,7 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Block editor with images, tables, code and to-dos
 - Search across titles and content (`Ctrl/⌘ K`)
 - Import Markdown (an Obsidian vault as a .zip, or .md files) and export everything as Markdown
+- Copy a page as Markdown, or save it as a PDF
 - Works offline; syncs and updates live across devices
 - Light and dark themes, mobile layout
 - Sign in with email or Google; delete your account and all its data from the account menu

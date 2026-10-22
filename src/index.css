@@ -265,3 +265,135 @@ button {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* Export as PDF (lib/pdf.ts): the page laid out for print, always light, whatever the theme. */
+#print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 18mm 16mm;
+  }
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  body:has(> #print-root) > :not(#print-root) {
+    display: none !important;
+  }
+  #print-root {
+    display: block;
+    color: #1e1f22;
+    font-family: var(--font-sans);
+    font-size: 11pt;
+    line-height: 1.6;
+  }
+}
+
+#print-root .print-title {
+  margin: 0 0 14pt;
+  font-size: 24pt;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+#print-root :is(h1, h2, h3, h4) {
+  margin: 16pt 0 6pt;
+  line-height: 1.3;
+  font-weight: 600;
+  break-after: avoid;
+}
+#print-root h1 {
+  font-size: 18pt;
+}
+#print-root h2 {
+  font-size: 15pt;
+}
+#print-root :is(h3, h4) {
+  font-size: 12.5pt;
+}
+#print-root p {
+  margin: 0 0 6pt;
+}
+#print-root :is(ul, ol) {
+  margin: 0 0 6pt;
+  padding-left: 18pt;
+}
+#print-root ul {
+  list-style: disc;
+}
+#print-root ol {
+  list-style: decimal;
+}
+#print-root li {
+  margin: 2pt 0;
+}
+#print-root li > p {
+  margin: 0;
+}
+/* To-dos: checkbox and text on one line, lined up with paragraphs, nested ones indented. */
+#print-root ul:has(> li > input[type="checkbox"]) {
+  padding-left: 0;
+}
+#print-root li ul:has(> li > input[type="checkbox"]) {
+  padding-left: 18pt;
+}
+#print-root li:has(> input[type="checkbox"]) {
+  list-style: none;
+}
+#print-root input[type="checkbox"] {
+  margin: 0 6pt 0 0;
+  vertical-align: -1pt;
+}
+#print-root li > input[type="checkbox"] + p {
+  display: inline;
+}
+#print-root li[data-checked="true"] > p {
+  text-decoration: line-through;
+}
+#print-root a {
+  color: #2f6feb;
+  text-decoration: none;
+}
+#print-root code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+#print-root pre {
+  margin: 0 0 8pt;
+  padding: 8pt 10pt;
+  border-radius: 6px;
+  background: #f5f5f3;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  break-inside: avoid;
+}
+#print-root blockquote {
+  margin: 0 0 6pt;
+  padding-left: 10pt;
+  border-left: 3px solid #ebebe8;
+  color: #45474d;
+}
+#print-root table {
+  margin: 0 0 8pt;
+  border-collapse: collapse;
+  break-inside: avoid;
+}
+#print-root :is(th, td) {
+  padding: 4pt 7pt;
+  border: 1px solid #ebebe8;
+  text-align: left;
+  vertical-align: top;
+}
+#print-root :is(th, td) > p {
+  margin: 0;
+}
+#print-root img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  break-inside: avoid;
+}

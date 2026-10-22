@@ -1,0 +1,53 @@
+import { usePages } from "../store/pages";
+import { pageHtml } from "./markdown";
+import { displayTitle } from "./text";
+
+/**
+ * Page menu > Export as PDF. Lays the page out for print (styles under #print-root in
+ * index.css) and opens the print dialog, where "Save as PDF" saves it. The browser does the
+ * typesetting, so the text stays selectable and every script and emoji looks as on screen.
+ */
+export async function exportPdf(id: string) {
+  const page = usePages.getState().pages[id];
+  if (!page) return;
+
+  const root = document.createElement("article");
+  root.id = "print-root";
+  const title = document.createElement("h1");
+  title.className = "print-title";
+  title.textContent = `${page.icon ? `${page.icon} ` : ""}${displayTitle(page.title)}`;
+  root.append(title);
+  root.insertAdjacentHTML("beforeend", await pageHtml(id));
+  document.getElementById("print-root")?.remove();
+  document.body.append(root);
+  await imagesLoaded(root);
+
+  // The saved file is named after the document title.
+  const appTitle = document.title;
+  document.title = displayTitle(page.title);
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    root.remove();
+    document.title = appTitle;
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  window.print();
+  // Every browser fires afterprint when the dialog closes; this is only a fallback.
+  setTimeout(cleanup, 60_000);
+}
+
+/** Images still loading would print blank, so wait for them: at most 10 seconds. */
+function imagesLoaded(root: HTMLElement) {
+  const waits = [...root.querySelectorAll("img")].map((img) => {
+    img.loading = "eager"; // lazy images never load while the print view is hidden
+    if (img.complete) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      img.addEventListener("load", () => resolve(), { once: true });
+      img.addEventListener("error", () => resolve(), { once: true });
+    });
+  });
+  return Promise.race([Promise.all(waits), new Promise((resolve) => setTimeout(resolve, 10_000))]);
+}

@@ -63,12 +63,11 @@ export type ExportResult = { blob: Blob; filename: string; pages: number; missin
 const link = (text: string, href: string) => ({ type: "link", href, content: [{ type: "text", text, styles: {} }] });
 
 /**
- * Pages outside the trash as Markdown, nested like the sidebar (a page with sub-pages becomes
- * `Title.md` next to a `Title/` folder, as in Obsidian). Links become `[[Title]]`, images are
- * saved under `attachments/`. `rootId` exports that page and its sub-pages, null everything.
- * A single page without sub-pages or images comes back as a plain .md file.
+ * Every page outside the trash as Markdown in a .zip, nested like the sidebar (a page with
+ * sub-pages becomes `Title.md` next to a `Title/` folder, as in Obsidian). Links become
+ * `[[Title]]`, images are saved under `attachments/`.
  */
-export async function exportPages(rootId: string | null): Promise<ExportResult> {
+export async function exportPages(): Promise<ExportResult> {
   const { pages } = usePages.getState();
   const files: Record<string, Uint8Array> = {};
   const paths = new Map<string, { dir: string; name: string }>();
@@ -81,11 +80,7 @@ export async function exportPages(rootId: string | null): Promise<ExportResult> 
       place(p.id, `${dir}${name}/`);
     }
   };
-  if (rootId) {
-    const name = nameFor(pages[rootId].title, new Set());
-    paths.set(rootId, { dir: "", name });
-    place(rootId, `${name}/`);
-  } else place(null, "");
+  place(null, "");
 
   let missingImages = 0;
   const attachments = new Map<string, string>();
@@ -133,25 +128,20 @@ export async function exportPages(rootId: string | null): Promise<ExportResult> 
     files[`${dir}${name}.md`] = strToU8(md);
   }
 
-  const names = Object.keys(files);
-  if (rootId && names.length === 1) {
-    return { blob: new Blob([files[names[0]] as BlobPart], { type: "text/markdown" }), filename: names[0], pages: 1, missingImages };
-  }
   const zipped = zipSync(files, { level: 6 });
-  const label = rootId ? paths.get(rootId)!.name : `margin-export-${today()}`;
   return {
     blob: new Blob([zipped as BlobPart], { type: "application/zip" }),
-    filename: `${label}.zip`,
+    filename: `margin-export-${today()}.zip`,
     pages: paths.size,
     missingImages,
   };
 }
 
 /**
- * One page as Markdown for pasting elsewhere. Page links point at the page in Margin and
- * images at a link that works for 7 days (the files themselves are private).
+ * A page's blocks for use outside Margin: page links point at the page in Margin and images at
+ * a link that works for 7 days (the files themselves are private).
  */
-export async function pageMarkdown(id: string): Promise<string> {
+async function blocksForOutside(id: string): Promise<Block[]> {
   const { pages } = usePages.getState();
   const images: Block[] = [];
   const blocks = mapBlocks(pages[id]?.content ?? [], (b) => {
@@ -173,7 +163,17 @@ export async function pageMarkdown(id: string): Promise<string> {
     const { data } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(url.slice(MEDIA_PREFIX.length), 60 * 60 * 24 * 7);
     img.props = { ...img.props, url: data?.signedUrl ?? "" };
   }
-  return editor().blocksToMarkdownLossy(blocks.filter((b) => b.type !== "image" || b.props?.url) as never).trim() + "\n";
+  return blocks.filter((b) => b.type !== "image" || b.props?.url);
+}
+
+/** One page as Markdown, for pasting elsewhere. */
+export async function pageMarkdown(id: string): Promise<string> {
+  return editor().blocksToMarkdownLossy((await blocksForOutside(id)) as never).trim() + "\n";
+}
+
+/** One page as HTML, for printing to PDF. */
+export async function pageHtml(id: string): Promise<string> {
+  return editor().blocksToHTMLLossy((await blocksForOutside(id)) as never);
 }
 
 /* ---------------- Import ---------------- */

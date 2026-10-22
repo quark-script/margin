@@ -246,7 +246,7 @@ function AccountMenu() {
 
   const exportEverything = async () => {
     const { exportPages } = await import("../lib/markdown");
-    const res = await exportPages(null);
+    const res = await exportPages();
     download(res.blob, res.filename);
     const missing = res.missingImages ? ` ${res.missingImages} image(s) couldn't be downloaded.` : "";
     return `Exported ${res.pages} page${res.pages === 1 ? "" : "s"}.${missing}`;
