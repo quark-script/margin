@@ -8,7 +8,7 @@ type Mode = "signin" | "forgot";
 
 function friendlyError(msg: string) {
   const m = msg.toLowerCase();
-  if (m.includes("invalid login")) return "Email or password is wrong. It's the same account as upkeep.";
+  if (m.includes("invalid login")) return "Email or password is wrong.";
   if (m.includes("email not confirmed")) return "Confirm your email first. Check your inbox for the link.";
   if (m.includes("password should be")) return "Use a password with at least 8 characters.";
   if (m.includes("same password") || m.includes("different from the old")) return "Pick a password you haven't used before.";
@@ -157,7 +157,7 @@ export function SetPassword() {
   };
 
   return (
-    <Shell title="Set a new password" subtitle="This also changes your upkeep password. It's the same account.">
+    <Shell title="Set a new password" subtitle="Choose a password with at least 8 characters.">
       <form onSubmit={submit} className="mt-7 space-y-3">
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-medium text-ink">New password</span>
