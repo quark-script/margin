@@ -1,0 +1,120 @@
+import { Link } from "react-router-dom";
+
+const CONTACT = "margin@dhanpulse.in";
+const UPDATED = "22 October 2026";
+
+/** /privacy, for everyone. Plain and specific about what Margin does with data. */
+export function Privacy() {
+  return (
+    <div className="safe-top min-h-full">
+      <header className="mx-auto flex max-w-[720px] items-center justify-between px-5 py-4">
+        <Link to="/" className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-[7px] bg-ink text-[15px] font-bold text-paper">M</span>
+          <span className="text-[16px] font-semibold tracking-[-0.01em]">Margin</span>
+        </Link>
+      </header>
+
+      <main className="mx-auto max-w-[720px] px-5 pt-8 pb-20 text-[15px] leading-relaxed text-ink/85">
+        <h1 className="text-[32px] font-bold tracking-[-0.02em] text-ink">Privacy</h1>
+        <p className="mt-2 text-[14px] text-muted">Last updated {UPDATED}</p>
+
+        <p className="mt-6">
+          Margin is a notes app made by Vipul Chaudhary. This page explains what it collects, why, and what you can do about
+          it. In short: your notes are yours, they are private unless you share them, and nothing is sold or used for ads.
+        </p>
+
+        <Section title="What Margin collects">
+          <ul className="list-disc space-y-1.5 pl-5">
+            <li>
+              <b>Your account:</b> your email address and password (stored hashed, never readable). If you sign in with Google,
+              Margin receives your name, email address and profile photo from Google.
+            </li>
+            <li>
+              <b>Your notes:</b> the pages you write, images you add, and earlier versions of your pages (version history).
+            </li>
+            <li>
+              <b>Sharing:</b> the email addresses you invite to a page, and who edited a shared page and when.
+            </li>
+            <li>
+              <b>Technical data:</b> Margin has no analytics or advertising trackers. The services it runs on keep standard
+              logs (such as IP address and browser) for security and to keep things running.
+            </li>
+          </ul>
+        </Section>
+
+        <Section title="How it's used">
+          <p>Only to run Margin:</p>
+          <ul className="mt-2 list-disc space-y-1.5 pl-5">
+            <li>signing you in and keeping your notes in sync across your devices;</li>
+            <li>showing your name, or the start of your email address, to people you share pages with;</li>
+            <li>sending account emails (confirming your address, resetting your password) and invitation emails when someone shares a page with you.</li>
+          </ul>
+          <p className="mt-2">Your data is not sold, rented or used for advertising.</p>
+        </Section>
+
+        <Section title="Who can see your notes">
+          <p>
+            Only you, unless you share a page. You can invite people by email, or open a page to anyone with its link. Either
+            way the sub-pages inside it are included. You can change or remove sharing at any time from the page's Share menu.
+          </p>
+        </Section>
+
+        <Section title="Services Margin uses">
+          <ul className="list-disc space-y-1.5 pl-5">
+            <li><b>Supabase:</b> database, sign-in and file storage.</li>
+            <li><b>Vercel:</b> hosting the app.</li>
+            <li><b>Resend:</b> sending emails.</li>
+            <li><b>Google:</b> only if you choose Sign in with Google.</li>
+          </ul>
+          <p className="mt-2">
+            They process data on Margin's behalf, in the United States and other countries where they operate.
+          </p>
+        </Section>
+
+        <Section title="On your device">
+          <p>
+            So that it works offline, Margin keeps a copy of your notes in your browser's storage. Signing out removes it from
+            that device.
+          </p>
+        </Section>
+
+        <Section title="Keeping and deleting your data">
+          <ul className="list-disc space-y-1.5 pl-5">
+            <li>Your data is kept while you have an account.</li>
+            <li>Version history keeps every version for 30 days, then one version per day.</li>
+            <li>You can delete pages at any time (Trash, then Delete forever) and export everything as Markdown from the account menu.</li>
+            <li>
+              To delete your account and all your data, email{" "}
+              <a href={`mailto:${CONTACT}`} className="text-accent hover:underline">{CONTACT}</a> from the address you signed up
+              with. It's done within 30 days.
+            </li>
+          </ul>
+        </Section>
+
+        <Section title="Children">
+          <p>Margin is not meant for children under 13.</p>
+        </Section>
+
+        <Section title="Changes">
+          <p>If this policy changes, this page will be updated and the date at the top will change.</p>
+        </Section>
+
+        <Section title="Contact">
+          <p>
+            Questions or requests:{" "}
+            <a href={`mailto:${CONTACT}`} className="text-accent hover:underline">{CONTACT}</a>
+          </p>
+        </Section>
+      </main>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-8">
+      <h2 className="text-[18px] font-semibold text-ink">{title}</h2>
+      <div className="mt-2">{children}</div>
+    </section>
+  );
+}

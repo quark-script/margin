@@ -8,6 +8,7 @@ import { Home } from "./pages/Home";
 import { PageView } from "./pages/PageView";
 import { PublicPage, TokenRedirect } from "./pages/SharedView";
 import { Landing } from "./pages/Landing";
+import { Privacy } from "./pages/Privacy";
 import { authLinkErrorCode } from "./lib/supabase";
 import { takeNext } from "./lib/next";
 import { reloadIfUpdateReady } from "./lib/update";
@@ -94,6 +95,7 @@ export default function App() {
             <Route path="p/:pageId" element={<PageView />} />
             <Route path="shared/:rootId/:pageId?" element={<SharedRedirect />} />
           </Route>
+          <Route path="privacy" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       ) : (
@@ -101,6 +103,7 @@ export default function App() {
           {/* The installed app, a failed email link and signing out go straight to sign-in. */}
           <Route index element={isInstalled() || authLinkErrorCode || linkFailed || signedOut ? <Login /> : <Landing />} />
           <Route path="signup" element={<Login key="signup" initialMode="signup" />} />
+          <Route path="privacy" element={<Privacy />} />
           {/* A page link: the page itself if it's open to anyone with the link, else sign-in. */}
           <Route path="p/:pageId" element={<PublicPage />} />
           <Route path="*" element={<Login />} />

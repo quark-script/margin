@@ -82,7 +82,12 @@ export function Landing() {
       <footer className="safe-bottom border-t border-line">
         <div className="mx-auto flex max-w-[1040px] items-center justify-between px-5 py-5 text-[13px] text-faint">
           <span>Margin</span>
-          <span>© {new Date().getFullYear()}</span>
+          <span className="flex items-center gap-4">
+            <Link to="/privacy" className="hover:text-muted">
+              Privacy
+            </Link>
+            <span>© {new Date().getFullYear()}</span>
+          </span>
         </div>
       </footer>
     </div>
