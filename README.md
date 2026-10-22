@@ -12,6 +12,7 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Share any page (and the pages inside it) with a link, view-only or editable; one editor at a time
 - Block editor with images, tables, code and to-dos
 - Search across titles and content (`Ctrl/⌘ K`)
+- Import Markdown (an Obsidian vault as a .zip, or .md files) and export everything as Markdown
 - Works offline; syncs and updates live across devices
 - Light and dark themes, mobile layout
 

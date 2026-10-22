@@ -6,6 +6,8 @@ type UiState = {
   switcherOpen: boolean;
   trashOpen: boolean;
   moveId: string | null;
+  notice: string | null;
+  notify: (msg: string | null) => void;
   expanded: Record<string, boolean>;
   setExpanded: (id: string, v: boolean) => void;
   expandMany: (ids: string[]) => void;
@@ -30,6 +32,8 @@ export const useUi = create<UiState>((set, get) => ({
   switcherOpen: false,
   trashOpen: false,
   moveId: null,
+  notice: null,
+  notify: (msg) => set({ notice: msg }),
   expanded: readExpanded(),
   setExpanded: (id, v) => {
     const expanded = { ...get().expanded };

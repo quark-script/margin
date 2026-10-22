@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
   ChevronsLeft,
+  Download,
   FileText,
   KeyRound,
   LogOut,
@@ -13,6 +14,7 @@ import {
   SquarePen,
   Sun,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { usePages } from "../store/pages";
@@ -181,6 +183,48 @@ function AccountMenu() {
   const signOut = useAuth((s) => s.signOut);
   const changePassword = useAuth((s) => s.changePassword);
   const { pref, setPref } = useTheme();
+  const navigate = useNavigate();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const notify = useUi((s) => s.notify);
+
+  const run = async (label: string, task: () => Promise<string>) => {
+    close();
+    setBusy(true);
+    notify(label);
+    try {
+      notify(await task());
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const exportAll = () =>
+    run("Preparing your export…", async () => {
+      const { exportAll } = await import("../lib/markdown");
+      const res = await exportAll();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(res.blob);
+      a.download = res.filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      const missing = res.missingImages ? ` ${res.missingImages} image(s) couldn't be downloaded.` : "";
+      return `Exported ${res.pages} page${res.pages === 1 ? "" : "s"}.${missing}`;
+    });
+
+  const importPicked = (files: File[]) =>
+    run("Importing…", async () => {
+      const { importFiles } = await import("../lib/markdown");
+      const res = await importFiles(files);
+      if (res.rootId) {
+        useUi.getState().setSidebarOpen(false);
+        navigate(`/p/${res.rootId}`);
+      }
+      const missing = res.missingImages.length ? ` Missing images: ${res.missingImages.slice(0, 3).join(", ")}${res.missingImages.length > 3 ? "…" : ""}.` : "";
+      return `Imported ${res.pages} page${res.pages === 1 ? "" : "s"}.${missing}`;
+    });
   const initial = (email[0] ?? "N").toUpperCase();
 
   const themeItem = (value: ThemePref, label: string, icon: React.ReactNode) => (
@@ -208,6 +252,13 @@ function AccountMenu() {
         {themeItem("light", "Light", <Sun size={15} />)}
         {themeItem("dark", "Dark", <Moon size={15} />)}
         <MenuDivider />
+        <MenuItem icon={<Upload size={15} />} onClick={() => !busy && fileInput.current?.click()}>
+          Import Markdown
+        </MenuItem>
+        <MenuItem icon={<Download size={15} />} onClick={() => !busy && void exportAll()}>
+          Export all pages
+        </MenuItem>
+        <MenuDivider />
         <MenuItem
           icon={<KeyRound size={15} />}
           onClick={() => {
@@ -227,6 +278,18 @@ function AccountMenu() {
           Sign out
         </MenuItem>
       </Popover>
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        accept=".md,.markdown,.txt,.zip,image/*"
+        className="hidden"
+        onChange={(e) => {
+          const files = [...(e.target.files ?? [])];
+          e.target.value = "";
+          if (files.length) void importPicked(files);
+        }}
+      />
     </>
   );
 }

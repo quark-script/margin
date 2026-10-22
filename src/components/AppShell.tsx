@@ -74,6 +74,32 @@ export function AppShell() {
       <QuickSwitcher />
       <MovePicker />
       <TrashPanel />
+      <Notice />
+    </div>
+  );
+}
+
+/** One-line status message at the bottom of the screen, e.g. after an import. */
+function Notice() {
+  const notice = useUi((s) => s.notice);
+  const notify = useUi((s) => s.notify);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => notify(null), 6000);
+    return () => clearTimeout(t);
+  }, [notice, notify]);
+  if (!notice) return null;
+  return (
+    <div className="safe-bottom pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+      <div
+        role="status"
+        className="pointer-events-auto flex max-w-[420px] items-start gap-3 rounded-lg bg-ink px-3.5 py-2.5 text-[14px] text-paper shadow-pop"
+      >
+        <span className="flex-1">{notice}</span>
+        <button onClick={() => notify(null)} className="text-paper/70 hover:text-paper" aria-label="Dismiss">
+          ✕
+        </button>
+      </div>
     </div>
   );
 }
