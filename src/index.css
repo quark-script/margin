@@ -266,15 +266,23 @@ button {
   }
 }
 
-/* Export as PDF (lib/pdf.ts): the page laid out for print, always light, whatever the theme. */
+/* Export as PDF (lib/pdf.ts): the page laid out as an A4 document, always light, whatever the
+   theme. The margins come from the layout (side padding, and table header and footer rows that
+   repeat on every page) rather than the print dialog, which may be set to no margins. */
 #print-root {
   display: none;
 }
 
+/* A4 for any print, so the dialog's paper and landscape choices can't apply; the export
+   page drops the dialog's margins and brings its own. */
+@page {
+  size: A4;
+}
+@page margin-export {
+  margin: 0;
+}
+
 @media print {
-  @page {
-    margin: 18mm 16mm;
-  }
   html,
   body {
     height: auto !important;
@@ -286,114 +294,199 @@ button {
   }
   #print-root {
     display: block;
+    page: margin-export;
     color: #1e1f22;
     font-family: var(--font-sans);
-    font-size: 11pt;
-    line-height: 1.6;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
 
+#print-root .print-sheet {
+  width: 100%;
+  border-collapse: collapse;
+}
+#print-root .print-sheet > * > tr > td {
+  padding: 0;
+  border: 0;
+}
+#print-root .print-gap {
+  height: 16mm;
+}
+#print-root .print-body {
+  padding: 0 19mm;
+}
+
 #print-root .print-title {
-  margin: 0 0 14pt;
-  font-size: 24pt;
+  margin: 0 0 16pt;
+  font-size: 26pt;
   line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-#print-root :is(h1, h2, h3, h4) {
-  margin: 16pt 0 6pt;
+#print-root .print-body :is(h1, h2, h3, h4) {
+  margin: 18pt 0 6pt;
   line-height: 1.3;
-  font-weight: 600;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   break-after: avoid;
+  break-inside: avoid;
 }
-#print-root h1 {
-  font-size: 18pt;
+#print-root .print-body .print-title + :is(h1, h2, h3, h4) {
+  margin-top: 6pt;
 }
-#print-root h2 {
-  font-size: 15pt;
+#print-root .print-body h1 {
+  font-size: 16pt;
 }
-#print-root :is(h3, h4) {
-  font-size: 12.5pt;
+#print-root .print-body h2 {
+  font-size: 13.5pt;
 }
-#print-root p {
+#print-root .print-body :is(h3, h4) {
+  font-size: 11.5pt;
+}
+#print-root .print-body p {
   margin: 0 0 6pt;
+  orphans: 2;
+  widows: 2;
 }
-#print-root :is(ul, ol) {
-  margin: 0 0 6pt;
-  padding-left: 18pt;
-}
-#print-root ul {
-  list-style: disc;
-}
-#print-root ol {
-  list-style: decimal;
-}
-#print-root li {
-  margin: 2pt 0;
-}
-#print-root li > p {
-  margin: 0;
-}
-/* To-dos: checkbox and text on one line, lined up with paragraphs, nested ones indented. */
-#print-root ul:has(> li > input[type="checkbox"]) {
-  padding-left: 0;
-}
-#print-root li ul:has(> li > input[type="checkbox"]) {
-  padding-left: 18pt;
-}
-#print-root li:has(> input[type="checkbox"]) {
-  list-style: none;
-}
-#print-root input[type="checkbox"] {
-  margin: 0 6pt 0 0;
-  vertical-align: -1pt;
-}
-#print-root li > input[type="checkbox"] + p {
-  display: inline;
-}
-#print-root li[data-checked="true"] > p {
-  text-decoration: line-through;
-}
-#print-root a {
+#print-root .print-body a {
   color: #2f6feb;
   text-decoration: none;
 }
-#print-root code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.9em;
+
+/* Lists: muted markers, compact items. A short item never splits across pages, and a label
+   with a list under it ("Basics") stays with its first item. */
+#print-root .print-body :is(ul, ol) {
+  margin: 0 0 6pt;
+  padding-left: 16pt;
 }
-#print-root pre {
-  margin: 0 0 8pt;
+#print-root .print-body li > :is(ul, ol) {
+  margin: 2pt 0 0;
+}
+#print-root .print-body ul {
+  list-style: disc;
+}
+#print-root .print-body ul ul {
+  list-style: circle;
+}
+#print-root .print-body ol {
+  list-style: decimal;
+}
+#print-root .print-body li {
+  margin: 1.5pt 0;
+  padding-left: 2pt;
+}
+#print-root .print-body li::marker {
+  color: #8a8d93;
+}
+#print-root .print-body li > p {
+  margin: 0;
+}
+#print-root .print-body li:not(:has(li)) {
+  break-inside: avoid;
+}
+#print-root .print-body li > p:has(+ :is(ul, ol)) {
+  break-after: avoid;
+}
+
+/* To-dos: drawn checkboxes on the text line, lined up with paragraphs, nested ones indented. */
+#print-root .print-body ul:has(> li > input[type="checkbox"]) {
+  padding-left: 0;
+}
+#print-root .print-body li ul:has(> li > input[type="checkbox"]) {
+  padding-left: 16pt;
+}
+#print-root .print-body li:has(> input[type="checkbox"]) {
+  padding-left: 0;
+  list-style: none;
+}
+#print-root .print-body input[type="checkbox"] {
+  appearance: none;
+  width: 9pt;
+  height: 9pt;
+  margin: 0 6pt 0 0;
+  border: 1px solid #a3a6ac;
+  border-radius: 2.5pt;
+  background: #fff;
+  vertical-align: -1pt;
+}
+#print-root .print-body input[type="checkbox"]:checked {
+  border-color: #2f6feb;
+  background: #2f6feb
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 6.3 5 8.6 9.5 3.7' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 100% no-repeat;
+}
+#print-root .print-body li > input[type="checkbox"] + p {
+  display: inline;
+}
+#print-root .print-body li[data-checked="true"] > p {
+  color: #73767d;
+  text-decoration: line-through;
+}
+
+#print-root .print-body code {
+  padding: 0.5pt 3pt;
+  border-radius: 3pt;
+  background: #f1f1ef;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86em;
+}
+#print-root .print-body pre {
+  margin: 4pt 0 8pt;
   padding: 8pt 10pt;
-  border-radius: 6px;
-  background: #f5f5f3;
+  border: 1px solid #ebebe8;
+  border-radius: 6pt;
+  background: #f7f7f5;
+  font-size: 9pt;
+  line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   break-inside: avoid;
 }
-#print-root blockquote {
-  margin: 0 0 6pt;
-  padding-left: 10pt;
-  border-left: 3px solid #ebebe8;
+#print-root .print-body pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+#print-root .print-body blockquote {
+  margin: 4pt 0 8pt;
+  padding: 1pt 0 1pt 10pt;
+  border-left: 2.5pt solid #e3e3e0;
   color: #45474d;
 }
-#print-root table {
-  margin: 0 0 8pt;
+#print-root .print-body hr {
+  margin: 14pt 0;
+  border: 0;
+  border-top: 1px solid #e6e6e3;
+  break-before: avoid; /* ends the section above, never starts a page */
+}
+#print-root .print-body table {
+  margin: 4pt 0 10pt;
   border-collapse: collapse;
+  font-size: 9.5pt;
   break-inside: avoid;
 }
-#print-root :is(th, td) {
-  padding: 4pt 7pt;
-  border: 1px solid #ebebe8;
+#print-root .print-body :is(th, td) {
+  padding: 4pt 8pt;
+  border: 1px solid #e3e3e0;
   text-align: left;
   vertical-align: top;
 }
-#print-root :is(th, td) > p {
+#print-root .print-body th {
+  background: #f7f7f5;
+  font-weight: 600;
+}
+#print-root .print-body :is(th, td) > p {
   margin: 0;
 }
-#print-root img {
+#print-root .print-body img {
+  display: block;
   max-width: 100%;
+  max-height: 200mm;
   height: auto;
-  border-radius: 4px;
+  margin: 4pt 0 8pt;
+  border-radius: 4pt;
   break-inside: avoid;
 }

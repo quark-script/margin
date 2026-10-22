@@ -11,13 +11,20 @@ export async function exportPdf(id: string) {
   const page = usePages.getState().pages[id];
   if (!page) return;
 
-  const root = document.createElement("article");
+  // The empty header and footer rows repeat on every printed page, so each page gets its top and
+  // bottom margin even when the print dialog is set to no margins.
+  const root = document.createElement("div");
   root.id = "print-root";
+  root.innerHTML =
+    '<table class="print-sheet"><thead><tr><td class="print-gap"></td></tr></thead>' +
+    '<tfoot><tr><td class="print-gap"></td></tr></tfoot>' +
+    '<tbody><tr><td><article class="print-body"></article></td></tr></tbody></table>';
+  const body = root.querySelector(".print-body")!;
   const title = document.createElement("h1");
   title.className = "print-title";
   title.textContent = `${page.icon ? `${page.icon} ` : ""}${displayTitle(page.title)}`;
-  root.append(title);
-  root.insertAdjacentHTML("beforeend", await pageHtml(id));
+  body.append(title);
+  body.insertAdjacentHTML("beforeend", await pageHtml(id));
   document.getElementById("print-root")?.remove();
   document.body.append(root);
   await imagesLoaded(root);
