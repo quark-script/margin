@@ -26,6 +26,7 @@ import { PageTree } from "./PageTree";
 import { IconButton, MenuDivider, MenuItem, Popover } from "./Menu";
 import { SyncStatus } from "./SyncStatus";
 import { openToday } from "../lib/daily";
+import { download } from "../lib/download";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const modKey = isMac ? "⌘" : "Ctrl";
@@ -203,13 +204,9 @@ function AccountMenu() {
 
   const exportAll = () =>
     run("Preparing your export…", async () => {
-      const { exportAll } = await import("../lib/markdown");
-      const res = await exportAll();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(res.blob);
-      a.download = res.filename;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      const { exportPages } = await import("../lib/markdown");
+      const res = await exportPages(null);
+      download(res.blob, res.filename);
       const missing = res.missingImages ? ` ${res.missingImages} image(s) couldn't be downloaded.` : "";
       return `Exported ${res.pages} page${res.pages === 1 ? "" : "s"}.${missing}`;
     });

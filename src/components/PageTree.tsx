@@ -1,10 +1,25 @@
 import { memo, useCallback, useRef, useState } from "react";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
-import { ChevronRight, FileText, MoreHorizontal, Plus, Star, StarOff, Trash2, CornerUpRight, Copy } from "lucide-react";
+import {
+  ChevronRight,
+  ClipboardCopy,
+  Copy,
+  CornerUpRight,
+  Download,
+  FileText,
+  Globe,
+  MoreHorizontal,
+  Plus,
+  Star,
+  StarOff,
+  Trash2,
+} from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { childrenOf, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { displayTitle } from "../lib/text";
+import { useShares } from "../store/shares";
+import { download } from "../lib/download";
 import { IconButton, MenuDivider, MenuItem, Popover } from "./Menu";
 
 export function PageTree({ parentId, depth = 0 }: { parentId: string | null; depth?: number }) {
@@ -32,6 +47,7 @@ const TreeItem = memo(function TreeItem({ id, depth }: { id: string; depth: numb
   const setOpen = (v: boolean) => setExpanded(id, v);
   const navigate = useNavigate();
   const setSidebarOpen = useUi((s) => s.setSidebarOpen);
+  const shared = useShares((s) => !!s.shares[id]);
 
   if (!page) return null;
 
@@ -64,6 +80,11 @@ const TreeItem = memo(function TreeItem({ id, depth }: { id: string; depth: numb
             {page.icon || <FileText size={16} className="text-faint" strokeWidth={1.75} />}
           </span>
           <span className={`truncate ${page.title.trim() ? "" : "text-faint"}`}>{displayTitle(page.title)}</span>
+          {shared && (
+            <span title="Shared with a link" aria-label="Shared" className="shrink-0 text-faint">
+              <Globe size={12} strokeWidth={2} />
+            </span>
+          )}
         </NavLink>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100">
           <PageMenu id={id} />
@@ -122,6 +143,13 @@ export function PageMenu({ id, align = "start" }: { id: string; align?: "start" 
           Move to
         </MenuItem>
         <MenuDivider />
+        <MenuItem icon={<ClipboardCopy size={15} />} onClick={act(() => copyMarkdown(id))}>
+          Copy as Markdown
+        </MenuItem>
+        <MenuItem icon={<Download size={15} />} onClick={act(() => exportMarkdown(id))}>
+          Export as Markdown
+        </MenuItem>
+        <MenuDivider />
         <MenuItem
           danger
           icon={<Trash2 size={15} />}
@@ -135,4 +163,32 @@ export function PageMenu({ id, align = "start" }: { id: string; align?: "start" 
       </Popover>
     </>
   );
+}
+
+function copyMarkdown(id: string) {
+  const { notify } = useUi.getState();
+  const text = import("../lib/markdown").then((m) => m.pageMarkdown(id));
+  // Safari only allows clipboard writes inside the click, so hand it a promise right away.
+  const write =
+    typeof ClipboardItem !== "undefined"
+      ? navigator.clipboard.write([new ClipboardItem({ "text/plain": text.then((t) => new Blob([t], { type: "text/plain" })) })])
+      : text.then((t) => navigator.clipboard.writeText(t));
+  write
+    .catch(() => text.then((t) => navigator.clipboard.writeText(t)))
+    .then(
+      () => notify("Copied as Markdown."),
+      () => notify("Couldn't copy. Try Export as Markdown."),
+    );
+}
+
+async function exportMarkdown(id: string) {
+  const { notify } = useUi.getState();
+  try {
+    const { exportPages } = await import("../lib/markdown");
+    const res = await exportPages(id);
+    download(res.blob, res.filename);
+    if (res.missingImages) notify(`${res.missingImages} image(s) couldn't be downloaded.`);
+  } catch (err) {
+    notify(err instanceof Error ? err.message : String(err));
+  }
 }

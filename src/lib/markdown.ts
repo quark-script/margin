@@ -2,7 +2,7 @@
 
 import { BlockNoteEditor } from "@blocknote/core";
 import { strToU8, strFromU8, unzipSync, zipSync } from "fflate";
-import { MEDIA_BUCKET, MEDIA_PREFIX, supabase } from "./supabase";
+import { MEDIA_BUCKET, MEDIA_PREFIX, SITE_URL, supabase } from "./supabase";
 import { displayTitle } from "./text";
 import type { Block } from "./types";
 import { childrenOf, isTrashed, usePages } from "../store/pages";
@@ -60,12 +60,15 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export type ExportResult = { blob: Blob; filename: string; pages: number; missingImages: number };
 
+const link = (text: string, href: string) => ({ type: "link", href, content: [{ type: "text", text, styles: {} }] });
+
 /**
- * Every page outside the trash as a Markdown file, nested like the sidebar (a page with
- * sub-pages becomes `Title.md` next to a `Title/` folder, as in Obsidian). Links become
- * `[[Title]]`, images are saved under `attachments/`.
+ * Pages outside the trash as Markdown, nested like the sidebar (a page with sub-pages becomes
+ * `Title.md` next to a `Title/` folder, as in Obsidian). Links become `[[Title]]`, images are
+ * saved under `attachments/`. `rootId` exports that page and its sub-pages, null everything.
+ * A single page without sub-pages or images comes back as a plain .md file.
  */
-export async function exportAll(): Promise<ExportResult> {
+export async function exportPages(rootId: string | null): Promise<ExportResult> {
   const { pages } = usePages.getState();
   const files: Record<string, Uint8Array> = {};
   const paths = new Map<string, { dir: string; name: string }>();
@@ -78,7 +81,11 @@ export async function exportAll(): Promise<ExportResult> {
       place(p.id, `${dir}${name}/`);
     }
   };
-  place(null, "");
+  if (rootId) {
+    const name = nameFor(pages[rootId].title, new Set());
+    paths.set(rootId, { dir: "", name });
+    place(rootId, `${name}/`);
+  } else place(null, "");
 
   let missingImages = 0;
   const attachments = new Map<string, string>();
@@ -103,8 +110,11 @@ export async function exportAll(): Promise<ExportResult> {
         ...b,
         content: mapInline(b.content, (n) => {
           if (n.type !== "pageLink") return n;
-          const target = paths.get((n.props as { pageId?: string })?.pageId ?? "");
-          return { type: "text", text: target ? `[[${target.name}]]` : "", styles: {} };
+          const targetId = (n.props as { pageId?: string })?.pageId ?? "";
+          const target = paths.get(targetId);
+          // A page outside the export keeps its title as plain text.
+          const text = target ? `[[${target.name}]]` : pages[targetId] ? displayTitle(pages[targetId].title) : "";
+          return { type: "text", text, styles: {} };
         }) as Block["content"],
       };
       if (b.type === "image") images.push(out);
@@ -123,13 +133,47 @@ export async function exportAll(): Promise<ExportResult> {
     files[`${dir}${name}.md`] = strToU8(md);
   }
 
+  const names = Object.keys(files);
+  if (rootId && names.length === 1) {
+    return { blob: new Blob([files[names[0]] as BlobPart], { type: "text/markdown" }), filename: names[0], pages: 1, missingImages };
+  }
   const zipped = zipSync(files, { level: 6 });
+  const label = rootId ? paths.get(rootId)!.name : `margin-export-${today()}`;
   return {
     blob: new Blob([zipped as BlobPart], { type: "application/zip" }),
-    filename: `margin-export-${today()}.zip`,
+    filename: `${label}.zip`,
     pages: paths.size,
     missingImages,
   };
+}
+
+/**
+ * One page as Markdown for pasting elsewhere. Page links point at the page in Margin and
+ * images at a link that works for 7 days (the files themselves are private).
+ */
+export async function pageMarkdown(id: string): Promise<string> {
+  const { pages } = usePages.getState();
+  const images: Block[] = [];
+  const blocks = mapBlocks(pages[id]?.content ?? [], (b) => {
+    const out: Block = {
+      ...b,
+      content: mapInline(b.content, (n) => {
+        if (n.type !== "pageLink") return n;
+        const targetId = (n.props as { pageId?: string })?.pageId ?? "";
+        const target = pages[targetId];
+        return target ? link(displayTitle(target.title), `${SITE_URL}/p/${targetId}`) : [];
+      }) as Block["content"],
+    };
+    if (b.type === "image") images.push(out);
+    return out;
+  });
+  for (const img of images) {
+    const url = String(img.props?.url ?? "");
+    if (!url.startsWith(MEDIA_PREFIX)) continue;
+    const { data } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(url.slice(MEDIA_PREFIX.length), 60 * 60 * 24 * 7);
+    img.props = { ...img.props, url: data?.signedUrl ?? "" };
+  }
+  return editor().blocksToMarkdownLossy(blocks.filter((b) => b.type !== "image" || b.props?.url) as never).trim() + "\n";
 }
 
 /* ---------------- Import ---------------- */
@@ -173,7 +217,7 @@ async function collect(files: File[]) {
 
 /** Obsidian syntax the Markdown parser doesn't know, rewritten to plain links and images. */
 function preprocess(md: string, dir: string) {
-  md = md.replace(/^﻿/, "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, ""); // front matter
+  md = md.replace(/^\uFEFF/, "").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, ""); // front matter
   // ![[image.png|300]] and ![[Other note]]
   md = md.replace(/!\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|[^\]\n]*)?\]\]/g, (_, target: string) =>
     IMAGE_EXT.test(target.trim())
