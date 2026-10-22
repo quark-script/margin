@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "./store/auth";
 import { usePages } from "./store/pages";
 import { AppShell } from "./components/AppShell";
@@ -10,6 +10,7 @@ import { PublicPage, TokenRedirect } from "./pages/SharedView";
 import { Landing } from "./pages/Landing";
 import { authLinkErrorCode } from "./lib/supabase";
 import { takeNext } from "./lib/next";
+import { reloadIfUpdateReady } from "./lib/update";
 
 let reopenedLastPage = false;
 
@@ -29,6 +30,17 @@ function HomeRoute() {
     }
   }, [loaded, navigate]);
   return <Home />;
+}
+
+/** Moving to another page is a safe moment to switch to a newly installed version. */
+function UpdateOnNavigate() {
+  const { pathname } = useLocation();
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) first.current = false;
+    else reloadIfUpdateReady();
+  }, [pathname]);
+  return null;
 }
 
 /** Invited pages briefly lived under /shared/; they use the page's own link now. */
@@ -74,6 +86,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <UpdateOnNavigate />
       {session ? (
         <Routes>
           <Route element={<AppShell />}>

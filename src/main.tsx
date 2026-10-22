@@ -2,17 +2,26 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
 import App from "./App";
+import { markUpdateReady } from "./lib/update";
 import "./index.css";
 
 // An installed PWA can stay open for days; without these checks it only learns about a new
-// version on a cold start. autoUpdate reloads the page once the new version is ready.
+// version on a cold start. When one is ready, lib/update picks a safe moment to reload.
 registerSW({
   immediate: true,
+  onNeedReload: markUpdateReady,
   onRegisteredSW(_url, registration) {
     if (!registration) return;
-    const check = () => navigator.onLine && void registration.update().catch(() => {});
-    setInterval(check, 60 * 60 * 1000);
+    let lastCheck = 0;
+    const check = () => {
+      if (!navigator.onLine || Date.now() - lastCheck < 30_000) return;
+      lastCheck = Date.now();
+      void registration.update().catch(() => {});
+    };
+    setInterval(check, 10 * 60 * 1000);
     document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && check());
+    window.addEventListener("focus", check);
+    window.addEventListener("online", check);
   },
 });
 
