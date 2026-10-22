@@ -11,6 +11,12 @@ if (!url || !key) {
 // PASSWORD_RECOVERY event can fire before anyone has subscribed, so it can't be relied on alone.
 export const recoveryInUrl = /[#&]type=recovery\b/.test(window.location.hash);
 
+/** An expired or already-used email link comes back with the reason in the hash; same timing. */
+export const authLinkErrorCode = (() => {
+  const h = new URLSearchParams(window.location.hash.slice(1));
+  return h.get("error") ? (h.get("error_code") ?? "unknown") : null;
+})();
+
 // All app tables live in the `notes` schema (shared project with upkeep).
 export const supabase = createClient(url, key, {
   db: { schema: "notes" },

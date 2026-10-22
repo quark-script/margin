@@ -22,7 +22,9 @@ npm install
 npm run dev
 ```
 
-Requires a Supabase project with `supabase/schema.sql` and `supabase/migrations/*.sql` applied, the `notes` schema exposed in the Data API, and the `share-file` edge function (`supabase/functions/share-file`) deployed with JWT verification off. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`.
+Requires a Supabase project with `supabase/schema.sql` and `supabase/migrations/*.sql` applied, the `notes` schema exposed in the Data API, and the `share-file` edge function (`supabase/functions/share-file`) deployed with JWT verification off. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`. Optional: `VITE_TURNSTILE_SITE_KEY` turns on a Cloudflare Turnstile check for sign-up, sign-in and password reset (enable CAPTCHA protection in Supabase Auth with the matching secret).
+
+Auth email templates are in `supabase/templates`.
 
 ## Deployment
 
