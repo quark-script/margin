@@ -29,9 +29,14 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
   return (
     <main className="safe-top flex min-h-full items-center justify-center px-5 py-12">
       <div className="w-full max-w-[340px]">
-        <div className="mb-8 flex h-11 w-11 items-center justify-center rounded-[10px] bg-ink text-[22px] font-bold text-paper">
+        {/* A plain link: this screen can render outside the router (password recovery). */}
+        <a
+          href="/"
+          aria-label="Margin home"
+          className="mb-8 flex h-11 w-11 items-center justify-center rounded-[10px] bg-ink text-[22px] font-bold text-paper"
+        >
           M
-        </div>
+        </a>
         <h1 className="text-[26px] font-bold tracking-[-0.02em] text-ink">{title}</h1>
         <p className="mt-1.5 text-[14px] text-muted">{subtitle}</p>
         {children}
@@ -49,8 +54,8 @@ function linkError(): string | null {
   return authLinkErrorCode === "otp_expired" ? EXPIRED_LINK : "That link didn't work. Request a new one.";
 }
 
-export function Login() {
-  const [mode, setMode] = useState<Mode>("signin");
+export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);

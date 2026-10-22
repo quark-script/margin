@@ -7,6 +7,8 @@ import { Login, SetPassword } from "./pages/Login";
 import { Home } from "./pages/Home";
 import { PageView } from "./pages/PageView";
 import { SharedView } from "./pages/SharedView";
+import { Landing } from "./pages/Landing";
+import { authLinkErrorCode } from "./lib/supabase";
 
 let reopenedLastPage = false;
 
@@ -28,11 +30,17 @@ function HomeRoute() {
   return <Home />;
 }
 
+const isInstalled = () =>
+  window.matchMedia("(display-mode: standalone)").matches ||
+  (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
 export default function App() {
   const session = useAuth((s) => s.session);
   const ready = useAuth((s) => s.ready);
   const recovering = useAuth((s) => s.recovering);
   const start = useAuth((s) => s.start);
+  const linkFailed = useAuth((s) => s.linkFailed);
+  const signedOut = useAuth((s) => s.signedOut);
 
   useEffect(() => start(), [start]);
 
@@ -62,6 +70,9 @@ export default function App() {
         </Routes>
       ) : (
         <Routes>
+          {/* The installed app, a failed email link and signing out go straight to sign-in. */}
+          <Route index element={isInstalled() || authLinkErrorCode || linkFailed || signedOut ? <Login /> : <Landing />} />
+          <Route path="signup" element={<Login key="signup" initialMode="signup" />} />
           <Route path="*" element={<Login />} />
         </Routes>
       )}

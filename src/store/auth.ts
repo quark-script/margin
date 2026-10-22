@@ -13,6 +13,8 @@ type AuthState = {
   changingPassword: boolean;
   /** An email link (confirm, reset, ...) was expired or already used. */
   linkFailed: boolean;
+  /** Signed out in this tab: show the sign-in form, not the landing page. */
+  signedOut: boolean;
   changePassword: () => void;
   finishRecovery: () => void;
   start: () => () => void;
@@ -26,6 +28,7 @@ export const useAuth = create<AuthState>((set) => ({
   recovering: recoveryInUrl,
   changingPassword: false,
   linkFailed: false,
+  signedOut: false,
   changePassword: () => set({ recovering: true, changingPassword: true }),
   finishRecovery: () => set({ recovering: false, changingPassword: false }),
 
@@ -66,7 +69,7 @@ export const useAuth = create<AuthState>((set) => ({
     await usePages.getState().reset();
     useShares.getState().reset();
     await supabase.auth.signOut();
-    set({ session: null });
+    set({ session: null, signedOut: true });
     return true;
   },
 }));
