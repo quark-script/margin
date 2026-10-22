@@ -35,6 +35,8 @@ Auth email templates are in `supabase/templates`.
 
 Any static host. `vercel.json` and `public/_redirects` handle client-side routing.
 
+On Vercel, turn on Web Analytics in the project's Analytics tab, then redeploy. Page and share links reach it as `/p/[page]` and `/s/[link]`, without ids, tokens, query strings or fragments (`src/lib/analytics.ts`).
+
 ## Sync
 
 Edits are saved locally first (IndexedDB) and pushed to Supabase in the background. Changes from other devices arrive through Realtime. Conflicts resolve last-write-wins per page.

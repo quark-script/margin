@@ -36,8 +36,14 @@ export function Privacy() {
               <b>Sharing:</b> the email addresses you invite to a page, and who edited a shared page and when.
             </li>
             <li>
-              <b>Technical data:</b> Margin has no analytics or advertising trackers. The services it runs on keep standard
-              logs (such as IP address and browser) for security and to keep things running.
+              <b>Visit counts:</b> Margin counts visits with Vercel Web Analytics: which kind of screen was opened (such as
+              the home page, or "a page" without saying which), with the browser, device type and country. It uses no cookies,
+              doesn't identify you or follow you to other sites, and never sees page names, page links or your notes. There are
+              no advertising trackers.
+            </li>
+            <li>
+              <b>Technical data:</b> the services Margin runs on keep standard logs (such as IP address and browser) for
+              security and to keep things running.
             </li>
           </ul>
         </Section>
@@ -47,7 +53,8 @@ export function Privacy() {
           <ul className="mt-2 list-disc space-y-1.5 pl-5">
             <li>signing you in and keeping your notes in sync across your devices;</li>
             <li>showing your name, or the start of your email address, to people you share pages with;</li>
-            <li>sending account emails (confirming your address, resetting your password) and invitation emails when someone shares a page with you.</li>
+            <li>sending account emails (confirming your address, resetting your password) and invitation emails when someone shares a page with you;</li>
+            <li>counting visits, to see which parts of Margin get used.</li>
           </ul>
           <p className="mt-2">Your data is not sold, rented or used for advertising.</p>
         </Section>
@@ -62,7 +69,7 @@ export function Privacy() {
         <Section title="Services Margin uses">
           <ul className="list-disc space-y-1.5 pl-5">
             <li><b>Supabase:</b> database, sign-in and file storage.</li>
-            <li><b>Vercel:</b> hosting the app.</li>
+            <li><b>Vercel:</b> hosting the app and counting visits (Web Analytics).</li>
             <li><b>Resend:</b> sending emails.</li>
             <li><b>Google:</b> only if you choose Sign in with Google.</li>
           </ul>

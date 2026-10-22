@@ -1,8 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
+import { Analytics } from "@vercel/analytics/react";
 import App from "./App";
 import { markUpdateReady } from "./lib/update";
+import { redactUrl } from "./lib/analytics";
 import "./index.css";
 
 // An installed PWA can stay open for days; without these checks it only learns about a new
@@ -28,5 +30,6 @@ registerSW({
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
+    <Analytics beforeSend={redactUrl} />
   </StrictMode>,
 );

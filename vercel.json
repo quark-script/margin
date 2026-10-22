@@ -1,3 +1,3 @@
 {
-  "rewrites": [{ "source": "/((?!assets/|sw.js|workbox-|manifest.webmanifest|.*\\.(?:png|svg|ico|woff2)).*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/((?!assets/|_vercel/|sw.js|workbox-|manifest.webmanifest|.*\\.(?:png|svg|ico|woff2)).*)", "destination": "/index.html" }]
 }
