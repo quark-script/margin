@@ -136,7 +136,7 @@ function Preview() {
           <div className="text-[26px] font-bold tracking-[-0.02em] text-ink">2026-10-22</div>
           <div className="mt-4 space-y-2.5 text-[14px] text-ink/85">
             <p>
-              Call with Riya about the launch. Notes in{" "}
+              Call with the team about the launch. Notes in{" "}
               <span className="page-link">
                 <span className="page-link-icon">💡</span>Ideas
               </span>
