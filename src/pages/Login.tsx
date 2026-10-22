@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { authLinkErrorCode, supabase } from "../lib/supabase";
+import { useEffect, useState } from "react";
+import { authLinkErrorCode, SITE_URL, supabase } from "../lib/supabase";
 import { useAuth } from "../store/auth";
 import { useTheme } from "../lib/theme";
 import { Captcha, CAPTCHA_SITE_KEY } from "../components/Captcha";
@@ -40,13 +40,13 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
   );
 }
 
+const EXPIRED_LINK = "That link has expired or was already used. Request a new one.";
+
 /** Supabase sends expired or used email links back with the reason in the URL hash. */
 function linkError(): string | null {
   if (!authLinkErrorCode) return null;
   if (window.location.hash) history.replaceState(null, "", window.location.pathname);
-  return authLinkErrorCode === "otp_expired"
-    ? "That link has expired or was already used. Request a new one."
-    : "That link didn't work. Request a new one.";
+  return authLinkErrorCode === "otp_expired" ? EXPIRED_LINK : "That link didn't work. Request a new one.";
 }
 
 export function Login() {
@@ -59,6 +59,10 @@ export function Login() {
   const [captcha, setCaptcha] = useState<string | null>(null);
   const [captchaReset, setCaptchaReset] = useState(0);
   const isDark = useTheme((s) => s.isDark);
+  const linkFailed = useAuth((s) => s.linkFailed);
+  useEffect(() => {
+    if (linkFailed) setError(EXPIRED_LINK);
+  }, [linkFailed]);
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -67,7 +71,7 @@ export function Login() {
   };
 
   const opts = () => (captcha ? { captchaToken: captcha } : {});
-  const redirect = window.location.origin;
+  const redirect = SITE_URL;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

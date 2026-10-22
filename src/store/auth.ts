@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Session } from "@supabase/supabase-js";
-import { recoveryInUrl, supabase } from "../lib/supabase";
+import { emailLink, recoveryInUrl, supabase } from "../lib/supabase";
 import { hasPending, usePages } from "./pages";
 import { useShares } from "./shares";
 
@@ -11,6 +11,8 @@ type AuthState = {
   recovering: boolean;
   /** True when the password screen was opened from the account menu, so it can be cancelled. */
   changingPassword: boolean;
+  /** An email link (confirm, reset, ...) was expired or already used. */
+  linkFailed: boolean;
   changePassword: () => void;
   finishRecovery: () => void;
   start: () => () => void;
@@ -23,12 +25,19 @@ export const useAuth = create<AuthState>((set) => ({
   ready: false,
   recovering: recoveryInUrl,
   changingPassword: false,
+  linkFailed: false,
   changePassword: () => set({ recovering: true, changingPassword: true }),
   finishRecovery: () => set({ recovering: false, changingPassword: false }),
 
   start() {
+    // Verify an email link first, so the sign-in screen doesn't flash before it signs us in.
+    const verified = emailLink
+      ? supabase.auth.verifyOtp(emailLink).then(({ error }) => {
+          if (error) set({ linkFailed: true, recovering: false });
+        })
+      : Promise.resolve();
     // getSession reads from local storage, so this works offline too.
-    void supabase.auth.getSession().then(({ data }) => {
+    void verified.then(() => supabase.auth.getSession()).then(({ data }) => {
       set({ session: data.session, ready: true });
       if (data.session) {
         void usePages.getState().init(data.session.user.id);
