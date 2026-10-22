@@ -8,6 +8,9 @@ type AuthState = {
   ready: boolean;
   /** Signed in through a password-reset link; must set a new password before using the app. */
   recovering: boolean;
+  /** True when the password screen was opened from the account menu, so it can be cancelled. */
+  changingPassword: boolean;
+  changePassword: () => void;
   finishRecovery: () => void;
   start: () => () => void;
   /** Resolves false if the user cancelled because unsynced edits would be lost. */
@@ -18,7 +21,9 @@ export const useAuth = create<AuthState>((set) => ({
   session: null,
   ready: false,
   recovering: recoveryInUrl,
-  finishRecovery: () => set({ recovering: false }),
+  changingPassword: false,
+  changePassword: () => set({ recovering: true, changingPassword: true }),
+  finishRecovery: () => set({ recovering: false, changingPassword: false }),
 
   start() {
     // getSession reads from local storage, so this works offline too.

@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ChevronsLeft,
   FileText,
+  KeyRound,
   LogOut,
   Monitor,
   Moon,
@@ -178,6 +179,7 @@ function AccountMenu() {
   const close = useCallback(() => setOpen(false), []);
   const email = useAuth((s) => s.session?.user.email ?? "");
   const signOut = useAuth((s) => s.signOut);
+  const changePassword = useAuth((s) => s.changePassword);
   const { pref, setPref } = useTheme();
   const initial = (email[0] ?? "N").toUpperCase();
 
@@ -206,6 +208,15 @@ function AccountMenu() {
         {themeItem("light", "Light", <Sun size={15} />)}
         {themeItem("dark", "Dark", <Moon size={15} />)}
         <MenuDivider />
+        <MenuItem
+          icon={<KeyRound size={15} />}
+          onClick={() => {
+            close();
+            changePassword();
+          }}
+        >
+          Change password
+        </MenuItem>
         <MenuItem
           icon={<LogOut size={15} />}
           onClick={() => {

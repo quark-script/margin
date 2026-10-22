@@ -145,6 +145,7 @@ export function SetPassword() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const finishRecovery = useAuth((s) => s.finishRecovery);
+  const cancelable = useAuth((s) => s.changingPassword);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,6 +177,11 @@ export function SetPassword() {
           {busy ? "Please wait…" : "Save password"}
         </button>
       </form>
+      {cancelable && (
+        <button onClick={finishRecovery} className="mt-6 text-[14px] font-medium text-accent hover:underline">
+          Cancel
+        </button>
+      )}
     </Shell>
   );
 }
