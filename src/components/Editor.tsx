@@ -12,6 +12,7 @@ import { en } from "@blocknote/core/locales";
 import { FilePlus, FileText, Link2 } from "lucide-react";
 import "@blocknote/mantine/style.css";
 import { MEDIA_BUCKET, MEDIA_PREFIX, supabase } from "../lib/supabase";
+import { resolveFileUrl } from "../lib/media";
 import type { Block } from "../lib/types";
 import { isTrashed, usePages } from "../store/pages";
 import { displayTitle } from "../lib/text";
@@ -121,8 +122,6 @@ const dictionary = {
   },
 };
 
-const signedUrlCache = new Map<string, { url: string; expires: number }>();
-const SIGN_SECONDS = 60 * 60 * 24 * 7;
 
 async function uploadFile(file: File) {
   if (!navigator.onLine) throw new Error("You're offline. Images can be added once you're back online.");
@@ -139,16 +138,6 @@ async function uploadFile(file: File) {
   return MEDIA_PREFIX + path;
 }
 
-async function resolveFileUrl(url: string) {
-  if (!url.startsWith(MEDIA_PREFIX)) return url;
-  const path = url.slice(MEDIA_PREFIX.length);
-  const hit = signedUrlCache.get(path);
-  if (hit && hit.expires > Date.now() + 60_000) return hit.url;
-  const { data, error } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(path, SIGN_SECONDS);
-  if (error || !data) return url;
-  signedUrlCache.set(path, { url: data.signedUrl, expires: Date.now() + SIGN_SECONDS * 1000 });
-  return data.signedUrl;
-}
 
 type Props = {
   pageId: string;

@@ -6,7 +6,16 @@ import { SyncStatus } from "./SyncStatus";
 
 type Crumb = { id: string; icon: string | null; title: string };
 
-export function TopBar({ crumbs, right }: { crumbs: Crumb[] | null; right?: React.ReactNode }) {
+export function TopBar({
+  crumbs,
+  right,
+  hrefFor = (id) => `/p/${id}`,
+}: {
+  crumbs: Crumb[] | null;
+  right?: React.ReactNode;
+  /** Where a crumb leads; pages shared by invite live under /shared/. */
+  hrefFor?: (id: string) => string;
+}) {
   const collapsed = useUi((s) => s.sidebarCollapsed);
   const toggleCollapsed = useUi((s) => s.toggleCollapsed);
   const setSidebarOpen = useUi((s) => s.setSidebarOpen);
@@ -36,7 +45,7 @@ export function TopBar({ crumbs, right }: { crumbs: Crumb[] | null; right?: Reac
             ) : (
               <span key={c.id} className={`flex min-w-0 items-center ${i === shown.length - 1 ? "" : "max-sm:hidden"}`}>
                 <Link
-                  to={`/p/${c.id}`}
+                  to={hrefFor(c.id)}
                   className={`flex min-w-0 items-center gap-1.5 truncate rounded-md px-1.5 py-1 hover:bg-hover ${
                     i === shown.length - 1 ? "text-ink" : "text-muted"
                   }`}

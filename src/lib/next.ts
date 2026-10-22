@@ -1,11 +1,13 @@
-// Where to go after signing in, e.g. back to a shared page the visitor wanted to edit. Kept in
-// localStorage so it survives the email-confirmation round trip of a new account.
+// Where to go after signing in: back to a shared page the visitor wanted to edit, or a page
+// someone invited them to. Kept in localStorage so it survives the email-confirmation round
+// trip of a new account.
 
 const KEY = "margin:next";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // an abandoned sign-in shouldn't redirect days later
 
-/** Only shared-page paths are accepted, so a crafted link can't send people elsewhere. */
-const safe = (path: string | null) => (path && /^\/s\/[\w-]+(\/[\w-]+)?$/.test(path) ? path : null);
+/** Only page paths are accepted, so a crafted link can't send people elsewhere. */
+const PAGE_PATH = /^\/(s\/[\w-]+(\/[\w-]+)?|p\/[\w-]+|shared\/[\w-]+(\/[\w-]+)?)$/;
+const safe = (path: string | null) => (path && PAGE_PATH.test(path) ? path : null);
 
 export function rememberNext(path: string | null) {
   const p = safe(path);

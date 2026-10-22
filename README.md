@@ -9,7 +9,10 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Nested pages with favorites and trash
 - Links between pages (`[[`) with backlinks; links follow renames
 - Daily notes: one click opens today's page
-- Share any page (and the pages inside it) with a link, view-only or editable; one editor at a time
+- Share any page (and the pages inside it) with a link, view-only or editable; editing needs an account
+- Invite people by email to view or edit; pages shared with you appear under "Shared with me"
+- One editor at a time on shared pages, with the editor's name shown to everyone else
+- Version history for every page: preview and restore earlier versions
 - Block editor with images, tables, code and to-dos
 - Search across titles and content (`Ctrl/⌘ K`)
 - Import Markdown (an Obsidian vault as a .zip, or .md files) and export everything as Markdown

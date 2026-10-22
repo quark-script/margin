@@ -53,19 +53,31 @@ export const lockPage = (pageId: string, token: string | null) =>
 export const unlockPage = (pageId: string) =>
   rpc<null>("unlock_page", { p_page_id: pageId, p_editor: editorId }).catch(() => null);
 
-/** For pagehide: a normal request is cancelled with the page; keepalive lets it finish. */
-export function unlockPageOnExit(pageId: string) {
+/**
+ * For pagehide: a normal request is cancelled with the page; keepalive lets it finish (browsers
+ * cap keepalive bodies at 64 KB). Writes need the editor's sign-in, so the access token goes along.
+ */
+function rpcOnExit(fn: string, args: Record<string, unknown>, accessToken?: string) {
+  const body = JSON.stringify(args);
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
-  void fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/unlock_page`, {
+  void fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    keepalive: true,
-    headers: { apikey: key, "Content-Type": "application/json", "Content-Profile": "notes" },
-    body: JSON.stringify({ p_page_id: pageId, p_editor: editorId }),
+    keepalive: body.length < 60_000,
+    headers: {
+      apikey: key,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      "Content-Type": "application/json",
+      "Content-Profile": "notes",
+    },
+    body,
   }).catch(() => {});
 }
 
-/** Owner only: id of whoever holds the page's lock right now, if anyone. */
-export const pageLockHolder = (pageId: string) => rpc<string | null>("page_lock_state", { p_page_id: pageId });
+export const unlockPageOnExit = (pageId: string) => rpcOnExit("unlock_page", { p_page_id: pageId, p_editor: editorId });
+
+/** Owner only: who holds the page's lock right now (their editor id and name), if anyone. */
+export const pageLockInfo = (pageId: string) =>
+  rpc<{ editor: string; name: string | null } | null>("page_lock_info", { p_page_id: pageId });
 
 export const saveShared = (token: string, pageId: string, content: Block[], searchText: string) =>
   rpc<{ ok: boolean; reason?: string; updated_at?: string }>("shared_save", {
@@ -76,22 +88,32 @@ export const saveShared = (token: string, pageId: string, content: Block[], sear
     p_search_text: searchText,
   });
 
-/**
- * pagehide variant of saveShared (see unlockPageOnExit). Saving needs the editor's sign-in, so
- * the access token goes along. Browsers cap keepalive bodies at 64 KB.
- */
-export function saveSharedOnExit(token: string, pageId: string, content: Block[], searchText: string, accessToken: string) {
-  const body = JSON.stringify({ p_token: token, p_page_id: pageId, p_editor: editorId, p_content: content, p_search_text: searchText });
-  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
-  void fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/shared_save`, {
-    method: "POST",
-    keepalive: body.length < 60_000,
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "Content-Profile": "notes",
-    },
-    body,
-  }).catch(() => {});
-}
+/** pagehide variant of saveShared. */
+export const saveSharedOnExit = (token: string, pageId: string, content: Block[], searchText: string, accessToken: string) =>
+  rpcOnExit(
+    "shared_save",
+    { p_token: token, p_page_id: pageId, p_editor: editorId, p_content: content, p_search_text: searchText },
+    accessToken,
+  );
+
+/* ---- Pages shared by invite: the same operations, keyed by the invited page instead of a token. ---- */
+
+export type IncomingShare = { page_id: string; title: string; icon: string | null; owner_name: string | null; can_edit: boolean };
+
+export const fetchSharedWithMe = () => rpc<IncomingShare[]>("shared_with_me", {});
+export const fetchMember = (root: string) => rpc<SharedTree | null>("member_pages", { p_root: root });
+export const fetchMemberState = (root: string) => rpc<SharedState | null>("member_state", { p_root: root });
+export const leaveShared = (root: string) => rpc<null>("leave_shared", { p_root: root });
+/** Someone opened /p/<id> of a page that isn't theirs: the invited page it's part of, if any. */
+export const memberRootFor = (pageId: string) => rpc<string | null>("member_root_for", { p_page_id: pageId });
+
+export const saveMember = (pageId: string, content: Block[], searchText: string) =>
+  rpc<{ ok: boolean; reason?: string; updated_at?: string }>("member_save", {
+    p_page_id: pageId,
+    p_editor: editorId,
+    p_content: content,
+    p_search_text: searchText,
+  });
+
+export const saveMemberOnExit = (pageId: string, content: Block[], searchText: string, accessToken: string) =>
+  rpcOnExit("member_save", { p_page_id: pageId, p_editor: editorId, p_content: content, p_search_text: searchText }, accessToken);

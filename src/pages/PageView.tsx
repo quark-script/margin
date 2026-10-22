@@ -14,8 +14,8 @@ import { PageMenu } from "../components/PageTree";
 import { TopBar } from "../components/TopBar";
 import { EditorBoundary } from "../components/EditorBoundary";
 import { ShareMenu } from "../components/ShareMenu";
-import { shareCovering, useShares } from "../store/shares";
-import { pageLockHolder } from "../lib/share";
+import { editableByOthers, useShares } from "../store/shares";
+import { memberRootFor, pageLockInfo } from "../lib/share";
 import { useEditLock } from "../lib/useEditLock";
 
 const Editor = lazy(() => import("../components/Editor").then((m) => ({ default: m.Editor })));
@@ -55,16 +55,17 @@ export function PageView() {
     }
   }, [page?.title, page?.icon, page?.id, page]);
 
-  // Pages inside a share that allows editing take turns: whoever is typing holds the page.
+  // Pages others can edit (a link or an invite) take turns: whoever is typing holds the page.
   const pages = usePages((s) => s.pages);
   const shares = useShares((s) => s.shares);
-  const lockEnabled = Boolean(shareCovering(pages, shares, pageId)?.share.can_edit) && !trashed;
-  const [holder, setHolder] = useState<string | null>(null);
+  const members = useShares((s) => s.members);
+  const lockEnabled = editableByOthers(pages, shares, members, pageId) && !trashed;
+  const [holder, setHolder] = useState<{ editor: string; name: string | null } | null>(null);
   useEffect(() => {
     setHolder(null);
     if (!lockEnabled) return;
     let alive = true;
-    const poll = () => pageLockHolder(pageId).then((h) => alive && setHolder(h)).catch(() => {});
+    const poll = () => pageLockInfo(pageId).then((h) => alive && setHolder(h)).catch(() => {});
     void poll();
     const t = setInterval(poll, 4000);
     return () => {
@@ -72,7 +73,26 @@ export function PageView() {
       clearInterval(t);
     };
   }, [pageId, lockEnabled]);
-  const lock = useEditLock(pageId, null, lockEnabled, holder);
+  const lock = useEditLock(pageId, null, lockEnabled, holder?.editor ?? null);
+
+  // Not one of ours: maybe someone invited us to it (they sent the page's own link).
+  const navigate = useNavigate();
+  const [checkingInvite, setCheckingInvite] = useState(false);
+  const missing = loaded && !page && status !== "syncing";
+  useEffect(() => {
+    if (!missing || !navigator.onLine) return;
+    let alive = true;
+    setCheckingInvite(true);
+    memberRootFor(pageId)
+      .then((root) => {
+        if (alive && root) navigate(root === pageId ? `/shared/${root}` : `/shared/${root}/${pageId}`, { replace: true });
+      })
+      .catch(() => {})
+      .finally(() => alive && setCheckingInvite(false));
+    return () => {
+      alive = false;
+    };
+  }, [missing, pageId, navigate]);
 
   const setContent = useCallback((blocks: Parameters<ReturnType<typeof usePages.getState>["setContent"]>[1]) => {
     lock.activity();
@@ -87,7 +107,7 @@ export function PageView() {
       <div className="flex h-full flex-col">
         <TopBar crumbs={null} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          {status === "syncing" ? (
+          {status === "syncing" || checkingInvite ? (
             <p className="text-[15px] text-muted">Looking for this page…</p>
           ) : (
             <>
@@ -127,7 +147,7 @@ export function PageView() {
       />
 
       {trashed && <TrashedBanner pageId={page.id} archivedSelf={page.is_archived} />}
-      {lock.heldByOther && <EditingElsewhereBanner />}
+      {lock.heldByOther && <EditingElsewhereBanner name={holder?.name ?? null} />}
 
       <div className="min-h-0 flex-1 overflow-y-auto" id="page-scroll">
         <article className="mx-auto w-full max-w-[760px] px-5 pb-[40vh] pt-10 sm:px-14 sm:pt-16">
@@ -323,10 +343,10 @@ function Backlinks({ pageId }: { pageId: string }) {
   );
 }
 
-function EditingElsewhereBanner() {
+function EditingElsewhereBanner({ name }: { name: string | null }) {
   return (
     <div className="border-b border-line px-4 py-2 text-center text-[14px] text-muted">
-      Someone is editing this page from a share link. It updates live; you can edit when they stop.
+      {name ?? "Someone"} is editing this page. It updates live; you can edit when they stop.
     </div>
   );
 }

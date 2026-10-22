@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+export type HistoryTarget = { pageId: string; title?: string; invited?: { onRestored: () => void } };
+
 type UiState = {
   sidebarOpen: boolean; // mobile drawer
   sidebarCollapsed: boolean; // desktop
@@ -7,8 +9,9 @@ type UiState = {
   trashOpen: boolean;
   moveId: string | null;
   notice: string | null;
-  historyId: string | null; // page whose version history is open
-  setHistoryId: (id: string | null) => void;
+  /** Page whose version history is open. Invited pages pass `invited` to restore through the server. */
+  history: HistoryTarget | null;
+  setHistory: (target: HistoryTarget | null) => void;
   notify: (msg: string | null) => void;
   expanded: Record<string, boolean>;
   setExpanded: (id: string, v: boolean) => void;
@@ -35,8 +38,8 @@ export const useUi = create<UiState>((set, get) => ({
   trashOpen: false,
   moveId: null,
   notice: null,
-  historyId: null,
-  setHistoryId: (id) => set({ historyId: id }),
+  history: null,
+  setHistory: (target) => set({ history: target }),
   notify: (msg) => set({ notice: msg }),
   expanded: readExpanded(),
   setExpanded: (id, v) => {

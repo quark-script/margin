@@ -57,8 +57,13 @@ function linkError(): string | null {
 
 export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
   const [mode, setMode] = useState<Mode>(initialMode);
-  // Arrived from "Sign in to edit" on a shared page: go back there afterwards.
-  const [fromShare] = useState(() => !!rememberNext(new URLSearchParams(window.location.search).get("next")));
+  // Arrived from "Sign in to edit" (?next=) or opened a page link while signed out: go back there
+  // afterwards. Not after signing out, which leaves this screen on whatever page you were on.
+  const [returnTo] = useState(
+    () =>
+      rememberNext(new URLSearchParams(window.location.search).get("next")) ??
+      (useAuth.getState().signedOut ? null : rememberNext(window.location.pathname)),
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -147,7 +152,10 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
     forgot: ["Reset your password", "We'll email you a link to set a new password."],
   };
   const [title, defaultSubtitle] = titles[mode];
-  const subtitle = fromShare && mode !== "forgot" ? "Sign in or create an account to edit the shared page." : defaultSubtitle;
+  const returnHint = returnTo?.startsWith("/s/")
+    ? "Sign in or create an account to edit the shared page."
+    : "Sign in or create an account to open this page.";
+  const subtitle = returnTo && mode !== "forgot" ? returnHint : defaultSubtitle;
   const cta = { signin: "Sign in", signup: "Create account", forgot: "Send reset link" }[mode];
 
   return (

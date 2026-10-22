@@ -14,6 +14,7 @@ import {
   Star,
   StarOff,
   Trash2,
+  Users,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { childrenOf, usePages } from "../store/pages";
@@ -48,7 +49,8 @@ const TreeItem = memo(function TreeItem({ id, depth }: { id: string; depth: numb
   const setOpen = (v: boolean) => setExpanded(id, v);
   const navigate = useNavigate();
   const setSidebarOpen = useUi((s) => s.setSidebarOpen);
-  const shared = useShares((s) => !!s.shares[id]);
+  const linkShared = useShares((s) => Boolean(s.shares[id]));
+  const invited = useShares((s) => Boolean(s.members[id]?.length));
 
   if (!page) return null;
 
@@ -81,9 +83,14 @@ const TreeItem = memo(function TreeItem({ id, depth }: { id: string; depth: numb
             {page.icon || <FileText size={16} className="text-faint" strokeWidth={1.75} />}
           </span>
           <span className={`truncate ${page.title.trim() ? "" : "text-faint"}`}>{displayTitle(page.title)}</span>
-          {shared && (
-            <span title="Shared with a link" aria-label="Shared" className="shrink-0 text-faint">
+          {linkShared && (
+            <span title="Shared with a link" aria-label="Shared with a link" className="shrink-0 text-faint">
               <Globe size={12} strokeWidth={2} />
+            </span>
+          )}
+          {invited && (
+            <span title="Shared with people" aria-label="Shared with people" className="shrink-0 text-faint">
+              <Users size={12} strokeWidth={2} />
             </span>
           )}
         </NavLink>
@@ -143,7 +150,7 @@ export function PageMenu({ id, align = "start" }: { id: string; align?: "start" 
         <MenuItem icon={<CornerUpRight size={15} />} onClick={act(() => useUi.getState().setMoveId(id))}>
           Move to
         </MenuItem>
-        <MenuItem icon={<History size={15} />} onClick={act(() => useUi.getState().setHistoryId(id))}>
+        <MenuItem icon={<History size={15} />} onClick={act(() => useUi.getState().setHistory({ pageId: id }))}>
           Version history
         </MenuItem>
         <MenuDivider />

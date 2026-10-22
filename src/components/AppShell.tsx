@@ -11,7 +11,7 @@ const HistoryPanel = lazy(() => import("./HistoryPanel").then((m) => ({ default:
 export function AppShell() {
   const { sidebarOpen, sidebarCollapsed, setSidebarOpen, toggleCollapsed, setSwitcherOpen } = useUi();
   const navigate = useNavigate();
-  const historyOpen = useUi((s) => s.historyId !== null);
+  const historyOpen = useUi((s) => s.history !== null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

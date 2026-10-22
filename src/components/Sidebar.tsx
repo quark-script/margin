@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
@@ -20,6 +20,7 @@ import { useShallow } from "zustand/react/shallow";
 import { usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { useAuth } from "../store/auth";
+import { useShares } from "../store/shares";
 import { useTheme, type ThemePref } from "../lib/theme";
 import { displayTitle } from "../lib/text";
 import { PageTree } from "./PageTree";
@@ -90,6 +91,8 @@ export function Sidebar({ onCollapse }: { onCollapse?: () => void }) {
           </section>
         )}
 
+        <SharedWithMe />
+
         <section>
           <div className="group flex items-center justify-between pr-1">
             <SectionLabel>Pages</SectionLabel>
@@ -151,6 +154,42 @@ function SideRow({
       <span className="flex-1 text-left">{children}</span>
       {hint && <span className="text-[12px] text-faint [@media(pointer:coarse)]:hidden">{hint}</span>}
     </button>
+  );
+}
+
+/** Pages other people invited you to. Refreshed whenever the app comes back to the foreground. */
+function SharedWithMe() {
+  const incoming = useShares((s) => s.incoming);
+  const setSidebarOpen = useUi((s) => s.setSidebarOpen);
+  useEffect(() => {
+    const refresh = () => document.visibilityState === "visible" && void useShares.getState().loadIncoming();
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, []);
+  if (!incoming.length) return null;
+  return (
+    <section className="mb-4">
+      <SectionLabel>Shared with me</SectionLabel>
+      {incoming.map((p) => (
+        <NavLink
+          key={p.page_id}
+          to={`/shared/${p.page_id}`}
+          onClick={() => setSidebarOpen(false)}
+          title={p.owner_name ? `Shared by ${p.owner_name}` : undefined}
+          className={({ isActive }) =>
+            `flex h-[30px] items-center gap-2 rounded-md px-2 text-[14px] [@media(pointer:coarse)]:h-9 hover:bg-hover ${
+              isActive ? "bg-press font-medium text-ink" : "text-ink/80"
+            }`
+          }
+        >
+          <span className="flex w-5 justify-center text-[15px] leading-none">
+            {p.icon || <FileText size={16} className="text-faint" strokeWidth={1.75} />}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{displayTitle(p.title)}</span>
+          {p.owner_name && <span className="shrink-0 truncate text-[12px] text-faint">{p.owner_name}</span>}
+        </NavLink>
+      ))}
+    </section>
   );
 }
 

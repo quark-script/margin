@@ -4,7 +4,7 @@ import { usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { useTheme } from "../lib/theme";
 import { displayTitle } from "../lib/text";
-import { fetchHistory, fetchVersion, restoreVersion, type Version, type VersionRow } from "../lib/history";
+import { fetchHistory, fetchVersion, restoreInvitedVersion, restoreVersion, type Version, type VersionRow } from "../lib/history";
 import { EditorBoundary } from "./EditorBoundary";
 import { IconButton } from "./Menu";
 
@@ -21,9 +21,11 @@ const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString(undefined, {
 
 /** Versions of a page: pick one to preview, restore it. The newest is the page as it is now. */
 export function HistoryPanel() {
-  const pageId = useUi((s) => s.historyId);
-  const close = () => useUi.getState().setHistoryId(null);
-  const page = usePages((s) => (pageId ? s.pages[pageId] : undefined));
+  const target = useUi((s) => s.history);
+  const pageId = target?.pageId ?? null;
+  const close = () => useUi.getState().setHistory(null);
+  const ownPage = usePages((s) => (pageId ? s.pages[pageId] : undefined));
+  const title = ownPage ? ownPage.title : (target?.title ?? "");
   const isDark = useTheme((s) => s.isDark);
   const [rows, setRows] = useState<VersionRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,14 +66,19 @@ export function HistoryPanel() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  if (!pageId || !page) return null;
+  if (!pageId || (!ownPage && !target?.invited)) return null;
 
   const isLatest = rows?.[0]?.id === selected;
   const restore = async () => {
     if (selected == null) return;
     setBusy(true);
     try {
-      await restoreVersion(pageId, selected);
+      if (target?.invited) {
+        await restoreInvitedVersion(pageId, selected);
+        target.invited.onRestored();
+      } else {
+        await restoreVersion(pageId, selected);
+      }
       useUi.getState().notify("Version restored. The previous state is kept in the history.");
       close();
     } catch (err) {
@@ -98,7 +105,7 @@ export function HistoryPanel() {
             </IconButton>
           )}
           <h2 className="min-w-0 flex-1 truncate px-1 text-[15px] font-medium text-ink">
-            Version history <span className="text-muted">· {displayTitle(page.title)}</span>
+            Version history <span className="text-muted">· {displayTitle(title)}</span>
           </h2>
           {preview && !isLatest && (
             <button

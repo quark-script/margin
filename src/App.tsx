@@ -6,7 +6,7 @@ import { AppShell } from "./components/AppShell";
 import { Login, SetPassword } from "./pages/Login";
 import { Home } from "./pages/Home";
 import { PageView } from "./pages/PageView";
-import { SharedView } from "./pages/SharedView";
+import { InvitedPage, LinkSharedPage } from "./pages/SharedView";
 import { Landing } from "./pages/Landing";
 import { authLinkErrorCode } from "./lib/supabase";
 import { takeNext } from "./lib/next";
@@ -45,11 +45,12 @@ export default function App() {
 
   useEffect(() => start(), [start]);
 
-  // Signed in from "Sign in to edit": back to the shared page.
+  // Signed in from "Sign in to edit" or a page link: back to that page. Not in the middle of a
+  // password reset: the reload would skip setting the new password.
   useEffect(() => {
-    const next = session && !location.pathname.startsWith("/s/") ? takeNext() : null;
-    if (next) location.replace(next);
-  }, [session]);
+    const next = session && !recovering && !location.pathname.startsWith("/s/") ? takeNext() : null;
+    if (next && next !== location.pathname) location.replace(next);
+  }, [session, recovering]);
 
   if (!ready) return null;
   if (session && recovering) return <SetPassword />;
@@ -59,7 +60,7 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
-          <Route path="s/:token/:pageId?" element={<SharedView />} />
+          <Route path="s/:token/:pageId?" element={<LinkSharedPage />} />
         </Routes>
       </BrowserRouter>
     );
@@ -72,6 +73,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route index element={<HomeRoute />} />
             <Route path="p/:pageId" element={<PageView />} />
+            <Route path="shared/:rootId/:pageId?" element={<InvitedPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
