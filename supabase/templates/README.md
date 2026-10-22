@@ -1,7 +1,14 @@
 # Auth email templates
 
-Margin-branded emails for Supabase Auth. Paste each file into
-Supabase → Authentication → Emails → Templates, with these subjects:
+Margin-branded emails for Supabase Auth. Upload them, with the Site URL and
+redirect URLs, in one step:
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_... node supabase/apply-auth-config.mjs
+```
+
+Or paste each file into Supabase → Authentication → Emails → Templates, with
+these subjects:
 
 | Template | File | Subject |
 | --- | --- | --- |
