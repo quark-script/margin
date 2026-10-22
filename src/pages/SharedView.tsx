@@ -1,8 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { FileText, History, LogOut, MoreHorizontal } from "lucide-react";
 import { useAuth } from "../store/auth";
-import { usePages } from "../store/pages";
 import { useShares } from "../store/shares";
 import { useUi } from "../store/ui";
 import { useTheme } from "../lib/theme";
@@ -11,16 +10,13 @@ import { MEDIA_PREFIX } from "../lib/supabase";
 import { resolveFileUrl } from "../lib/media";
 import type { Block } from "../lib/types";
 import {
-  fetchMember,
-  fetchMemberState,
-  fetchShared,
-  fetchSharedState,
-  saveMember,
-  saveMemberOnExit,
-  saveShared,
-  saveSharedOnExit,
+  fetchTree,
+  fetchTreeState,
+  saveSharedPage,
+  saveSharedPageOnExit,
   sharedFileUrl,
-  type SharedPage,
+  shareRoot,
+  type SharedPage as Page,
   type SharedTree,
 } from "../lib/share";
 import { useEditLock } from "../lib/useEditLock";
@@ -28,95 +24,71 @@ import { PageLinkContext } from "../lib/pageLinkContext";
 import { EditorBoundary } from "../components/EditorBoundary";
 import { IconButton, MenuItem, Popover } from "../components/Menu";
 import { TopBar } from "../components/TopBar";
+import { Login } from "./Login";
 
 const Editor = lazy(() => import("../components/Editor").then((m) => ({ default: m.Editor })));
 
 const POLL_MS = 5000;
 const SAVE_DEBOUNCE_MS = 800;
+const href = (id: string) => `/p/${id}`;
 
-/** How the visitor reached the page: a public link, or an invite to their account. */
-type Access = { kind: "link"; token: string } | { kind: "invite"; root: string };
-
-/** The same operations for both kinds of access. */
-function accessApi(access: Access) {
-  if (access.kind === "link") {
-    const t = access.token;
-    return {
-      lockToken: t as string | null,
-      fetch: () => fetchShared(t),
-      state: () => fetchSharedState(t),
-      save: (id: string, blocks: Block[]) => saveShared(t, id, blocks, blocksToText(blocks)),
-      saveOnExit: (id: string, blocks: Block[], jwt: string) => saveSharedOnExit(t, id, blocks, blocksToText(blocks), jwt),
-      href: (id?: string) => `/s/${t}${id ? `/${id}` : ""}`,
-      resolveFile: async (url: string) => (url.startsWith(MEDIA_PREFIX) ? sharedFileUrl(t, url.slice(MEDIA_PREFIX.length)) : url),
-    };
-  }
-  const r = access.root;
-  return {
-    lockToken: null,
-    fetch: () => fetchMember(r),
-    state: () => fetchMemberState(r),
-    save: (id: string, blocks: Block[]) => saveMember(id, blocks, blocksToText(blocks)),
-    saveOnExit: (id: string, blocks: Block[], jwt: string) => saveMemberOnExit(id, blocks, blocksToText(blocks), jwt),
-    href: (id?: string) => (id && id !== r ? `/shared/${r}/${id}` : `/shared/${r}`),
-    resolveFile: resolveFileUrl,
-  };
+/** /p/:pageId for a signed-in person who isn't the owner: shown inside their app. */
+export function SharedPage({ pageId }: { pageId: string }) {
+  return <SharedView pageId={pageId} layout="app" />;
 }
 
-/** /s/:token/:pageId? : a page shared to the web, readable by anyone with the link. */
-export function LinkSharedPage() {
+/** /p/:pageId when signed out: the page if it's open to anyone with the link, else sign-in. */
+export function PublicPage() {
+  const { pageId = "" } = useParams();
+  return <SharedView pageId={pageId} layout="public" />;
+}
+
+/** /s/:token from before every page had one link: on to the page it points at. */
+export function TokenRedirect() {
   const { token = "", pageId } = useParams();
-  const access = useMemo<Access>(() => ({ kind: "link", token }), [token]);
-  return <SharedView key={token} access={access} pageId={pageId} />;
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    shareRoot(token)
+      .then((root) => (root ? location.replace(href(pageId ?? root)) : setGone(true)))
+      .catch(() => setGone(true));
+  }, [token, pageId]);
+  return gone ? <Message text="This link doesn't work anymore. The owner may have stopped sharing it." /> : null;
 }
 
-/** /shared/:rootId/:pageId? : a page someone invited this user to, inside the app. */
-export function InvitedPage() {
-  const { rootId = "", pageId } = useParams();
-  const own = usePages((s) => Boolean(s.pages[pageId ?? rootId]));
-  const access = useMemo<Access>(() => ({ kind: "invite", root: rootId }), [rootId]);
-  if (own) return <Navigate to={`/p/${pageId ?? rootId}`} replace />; // the owner opened an invite link
-  return <SharedView key={rootId} access={access} pageId={pageId} />;
-}
-
-function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
-  const api = useMemo(() => accessApi(access), [access]);
-  const invited = access.kind === "invite";
+function SharedView({ pageId, layout }: { pageId: string; layout: "app" | "public" }) {
   const isDark = useTheme((s) => s.isDark);
+  const session = useAuth((s) => s.session);
   const [tree, setTree] = useState<SharedTree | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [revs, setRevs] = useState<Record<string, number>>({});
   const [holders, setHolders] = useState<Record<string, { editor: string; name?: string | null }>>({});
-  const session = useAuth((s) => s.session);
   const [saveError, setSaveError] = useState<string | null>(null);
   const known = useRef<Record<string, string>>({}); // page id -> updated_at we last loaded
 
-  const load = useCallback(
-    async (bump?: string[]) => {
-      try {
-        const t = await api.fetch();
-        setTree(t);
-        setFailed(false);
-        known.current = Object.fromEntries((t?.pages ?? []).map((p) => [p.id, p.updated_at]));
-        if (bump?.length) setRevs((r) => ({ ...r, ...Object.fromEntries(bump.map((id) => [id, (r[id] ?? 0) + 1])) }));
-      } catch {
-        setFailed(true);
-      }
-    },
-    [api],
-  );
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const load = useCallback(async (id: string, bump?: string[]) => {
+    try {
+      const t = await fetchTree(id);
+      setTree(t);
+      setFailed(false);
+      known.current = Object.fromEntries((t?.pages ?? []).map((p) => [p.id, p.updated_at]));
+      if (bump?.length) setRevs((r) => ({ ...r, ...Object.fromEntries(bump.map((x) => [x, (r[x] ?? 0) + 1])) }));
+    } catch {
+      setFailed(true);
+    }
+  }, []);
 
   const pages = useMemo(() => Object.fromEntries((tree?.pages ?? []).map((p) => [p.id, p])), [tree]);
-  const current: SharedPage | undefined = tree ? pages[pageId ?? tree.root_id] : undefined;
+  // Moving between pages of what was shared needs no reload; another page does.
+  useEffect(() => {
+    if (tree === undefined || (tree && !pages[pageId])) void load(pageId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId]);
+
+  const current: Page | undefined = pages[pageId];
   const allowsEdit = Boolean(tree?.can_edit);
-  // Editing needs an account; a signed-out link visitor reads, with a sign-in prompt.
-  const canEdit = allowsEdit && Boolean(session);
+  const canEdit = allowsEdit && Boolean(session); // editing always needs an account
   const holder = holders[current?.id ?? ""] ?? null;
-  const lock = useEditLock(current?.id ?? "", api.lockToken, canEdit && Boolean(current), holder?.editor ?? null);
+  const lock = useEditLock(current?.id ?? "", null, canEdit && Boolean(current), holder?.editor ?? null);
   const accessToken = useRef<string | null>(null);
   accessToken.current = session?.access_token ?? null;
   const holdingRef = useRef(false);
@@ -128,7 +100,7 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
     let alive = true;
     const t = setInterval(async () => {
       try {
-        const s = await api.state();
+        const s = await fetchTreeState(tree.root_id);
         if (!alive) return;
         if (!s) return setTree(null);
         setHolders(Object.fromEntries(s.locks.map((l) => [l.page_id, { editor: l.editor, name: l.name }])));
@@ -136,7 +108,9 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
         const membership = s.pages.length !== Object.keys(known.current).length;
         const skip = holdingRef.current && current ? current.id : null;
         const reload = changed.filter((id) => id !== skip);
-        if (reload.length || membership || s.can_edit !== tree.can_edit) await load(reload);
+        if (reload.length || membership || s.can_edit !== tree.can_edit || s.root_id !== tree.root_id) {
+          await load(current?.id ?? tree.root_id, reload);
+        }
       } catch {
         /* offline: try again next tick */
       }
@@ -145,7 +119,7 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
       alive = false;
       clearInterval(t);
     };
-  }, [tree, api, load, current]);
+  }, [tree, load, current]);
 
   // Debounced saves while holding the lock.
   const pending = useRef<{ id: string; blocks: Block[] } | null>(null);
@@ -156,7 +130,7 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
     pending.current = null;
     if (!p) return;
     try {
-      const r = await api.save(p.id, p.blocks);
+      const r = await saveSharedPage(p.id, p.blocks, blocksToText(p.blocks));
       if (!r.ok) setSaveError("Someone else started editing, so your last change wasn't saved.");
       else {
         setSaveError(null);
@@ -166,21 +140,21 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
       pending.current = pending.current ?? p; // keep it for the next attempt
       setSaveError("Couldn't save. Check your connection.");
     }
-  }, [api]);
+  }, []);
 
   useEffect(() => {
     const onHide = () => {
       if (timer.current) clearTimeout(timer.current);
       const p = pending.current;
       pending.current = null;
-      if (p && accessToken.current) api.saveOnExit(p.id, p.blocks, accessToken.current);
+      if (p && accessToken.current) saveSharedPageOnExit(p.id, p.blocks, blocksToText(p.blocks), accessToken.current);
     };
     window.addEventListener("pagehide", onHide);
     return () => {
       window.removeEventListener("pagehide", onHide);
       void flush();
     };
-  }, [flush, api, current?.id]);
+  }, [flush, current?.id]);
 
   const onChange = useCallback(
     (blocks: Block[]) => {
@@ -194,33 +168,47 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
   );
 
   const resolveLink = useCallback(
-    (id: string) => (pages[id] ? { title: displayTitle(pages[id].title), icon: pages[id].icon, href: api.href(id) } : null),
-    [pages, api],
+    (id: string) => (pages[id] ? { title: displayTitle(pages[id].title), icon: pages[id].icon, href: href(id) } : null),
+    [pages],
   );
-  const files = useMemo(() => ({ resolve: api.resolveFile }), [api]);
+  // Invitees may read the owner's images directly; link visitors go through the share-file function.
+  const files = useMemo(
+    () => ({
+      resolve: async (url: string) =>
+        tree?.via === "invite" || !url.startsWith(MEDIA_PREFIX) ? resolveFileUrl(url) : sharedFileUrl(tree?.root_id ?? "", url.slice(MEDIA_PREFIX.length)),
+    }),
+    [tree?.via, tree?.root_id],
+  );
   const linkCandidates = useCallback(
     () => Object.values(pages).map((p) => ({ id: p.id, title: p.title, icon: p.icon, updated_at: p.updated_at })),
     [pages],
   );
 
   useEffect(() => {
-    document.title = current ? `${current.icon ? current.icon + " " : ""}${displayTitle(current.title)}` : "Margin";
+    if (current) document.title = `${current.icon ? current.icon + " " : ""}${displayTitle(current.title)}`;
   }, [current]);
 
-  if (tree === undefined) {
-    return failed ? <Message invited={invited} text="Can't reach the server. Check your connection." /> : null;
+  const app = layout === "app";
+  if (tree === undefined || (tree && !current && !failed)) {
+    return failed ? <Message app={app} text="Can't reach the server. Check your connection." /> : null;
   }
-  if (tree === null) {
-    return invited ? (
-      <Message invited text="You don't have access to this page anymore. The owner may have removed you or moved it to trash." home="/" homeLabel="Go to your pages" />
+  if (!tree || !current) {
+    return app ? (
+      // Also what you see for one of your own pages after deleting it for good.
+      <Message
+        app
+        text="This page doesn't exist, or you don't have access to it."
+        detail={`If someone shared it with you, ask them to invite ${session?.user.email ?? "you"}.`}
+        home="/"
+        homeLabel="Go to your pages"
+      />
     ) : (
-      <Message text="This link doesn't work anymore. The owner may have stopped sharing it." />
+      <Login />
     );
   }
-  if (!current) return <Message invited={invited} text="This page isn't part of what was shared." home={api.href()} />;
 
-  const trail: SharedPage[] = [];
-  for (let p: SharedPage | undefined = current; p; p = p.parent_id ? pages[p.parent_id] : undefined) {
+  const trail: Page[] = [];
+  for (let p: Page | undefined = current; p; p = p.parent_id ? pages[p.parent_id] : undefined) {
     trail.unshift(p);
     if (p.id === tree.root_id) break;
   }
@@ -228,11 +216,9 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
     .filter((p) => p.parent_id === current.id)
     .sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at));
 
-  const editingName = holder?.name ? `${holder.name} is editing` : "Someone else is editing";
-  const status = !allowsEdit ? "View only" : lock.heldByOther ? editingName : lock.holding ? "Editing" : "Can edit";
-  const statusEl = (
-    <span className={`shrink-0 rounded-md px-2 py-0.5 text-[12px] ${lock.heldByOther ? "text-muted" : "text-faint"}`}>{status}</span>
-  );
+  // Only say something when it matters: read-only, or someone else has the page.
+  const status = lock.heldByOther ? `${holder?.name ?? "Someone"} is editing` : !allowsEdit ? "View only" : null;
+  const statusEl = status && <span className="shrink-0 px-2 text-[13px] text-muted">{status}</span>;
 
   const article = (
     <article className="mx-auto w-full max-w-[760px] px-5 pb-[30vh] pt-10 sm:px-14 sm:pt-16">
@@ -262,7 +248,7 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
           <ul>
             {children.map((k) => (
               <li key={k.id}>
-                <Link to={api.href(k.id)} className="-mx-2 flex h-9 items-center gap-2 rounded-md px-2 text-[15px] hover:bg-hover">
+                <Link to={href(k.id)} className="-mx-2 flex h-9 items-center gap-2 rounded-md px-2 text-[15px] hover:bg-hover">
                   <span className="flex w-5 justify-center text-[16px] leading-none">
                     {k.icon || <FileText size={17} className="text-faint" strokeWidth={1.75} />}
                   </span>
@@ -278,25 +264,26 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
 
   return (
     <PageLinkContext.Provider value={resolveLink}>
-      {invited ? (
+      {app ? (
         <div className="flex h-full flex-col">
           <TopBar
             crumbs={trail.map((p) => ({ id: p.id, icon: p.icon, title: displayTitle(p.title) }))}
-            hrefFor={api.href}
             right={
               <>
                 {statusEl}
-                <InvitedMenu
-                  rootId={tree.root_id}
-                  canEdit={canEdit}
-                  onHistory={() =>
-                    useUi.getState().setHistory({
-                      pageId: current.id,
-                      title: current.title,
-                      invited: { onRestored: () => void load([current.id]) },
-                    })
-                  }
-                />
+                {tree.via === "invite" && (
+                  <InvitedActions
+                    rootId={tree.root_id}
+                    canEdit={canEdit}
+                    onHistory={() =>
+                      useUi.getState().setHistory({
+                        pageId: current.id,
+                        title: current.title,
+                        invited: { onRestored: () => void load(current.id, [current.id]) },
+                      })
+                    }
+                  />
+                )}
               </>
             }
           />
@@ -310,7 +297,7 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
                 {trail.map((p, i) => (
                   <span key={p.id} className={`flex min-w-0 items-center ${i === trail.length - 1 ? "" : "max-sm:hidden"}`}>
                     <Link
-                      to={api.href(p.id)}
+                      to={href(p.id)}
                       className={`flex min-w-0 items-center gap-1.5 truncate rounded-md px-1.5 py-1 hover:bg-hover ${i === trail.length - 1 ? "text-ink" : "text-muted"}`}
                     >
                       {p.icon && <span className="leading-none">{p.icon}</span>}
@@ -320,10 +307,10 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
                   </span>
                 ))}
               </nav>
-              {allowsEdit && !session ? (
-                // A full page load: the sign-in screen lives outside this shared-page router.
+              {allowsEdit ? (
+                // A full page load: the sign-in screen lives outside this page's router.
                 <a
-                  href={`/login?next=${encodeURIComponent(api.href(pageId))}`}
+                  href={`/login?next=${encodeURIComponent(href(pageId))}&intent=edit`}
                   className="shrink-0 rounded-md bg-ink px-2.5 py-1 text-[13px] font-medium text-paper hover:opacity-90"
                 >
                   Sign in to edit
@@ -334,15 +321,19 @@ function SharedView({ access, pageId }: { access: Access; pageId?: string }) {
             </div>
           </header>
           <main className="flex-1">{article}</main>
-          <footer className="px-5 pb-6 text-center text-[12px] text-faint">Shared with Margin</footer>
+          <footer className="px-5 pb-6 text-center text-[12px] text-faint">
+            <a href="/" className="hover:text-muted">
+              Shared with Margin
+            </a>
+          </footer>
         </div>
       )}
     </PageLinkContext.Provider>
   );
 }
 
-/** Version history (for editors) and leaving the shared page. */
-function InvitedMenu({ rootId, canEdit, onHistory }: { rootId: string; canEdit: boolean; onHistory: () => void }) {
+/** For pages you were invited to: version history (editors) and leaving the page. */
+function InvitedActions({ rootId, canEdit, onHistory }: { rootId: string; canEdit: boolean; onHistory: () => void }) {
   const btn = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
@@ -350,7 +341,7 @@ function InvitedMenu({ rootId, canEdit, onHistory }: { rootId: string; canEdit: 
 
   const leave = async () => {
     close();
-    if (!window.confirm("Remove this page from Shared with me? You'll need a new invite to see it again.")) return;
+    if (!window.confirm("Leave this page? You'll need a new invitation to open it again.")) return;
     try {
       await useShares.getState().leave(rootId);
       navigate("/", { replace: true });
@@ -384,19 +375,32 @@ function InvitedMenu({ rootId, canEdit, onHistory }: { rootId: string; canEdit: 
   );
 }
 
-function Message({ text, home, homeLabel, invited }: { text: string; home?: string; homeLabel?: string; invited?: boolean }) {
+function Message({
+  text,
+  detail,
+  home,
+  homeLabel,
+  app,
+}: {
+  text: string;
+  detail?: string;
+  home?: string;
+  homeLabel?: string;
+  app?: boolean;
+}) {
   const body = (
-    <main className="flex min-h-full flex-1 flex-col items-center justify-center gap-3 bg-paper px-6 text-center">
+    <main className="flex min-h-full flex-1 flex-col items-center justify-center gap-2 bg-paper px-6 text-center">
       <p className="max-w-[420px] text-[15px] text-ink">{text}</p>
+      {detail && <p className="max-w-[420px] text-[14px] text-muted">{detail}</p>}
       {home && (
-        <Link to={home} className="rounded-md px-3 py-1.5 text-[14px] text-accent hover:bg-hover">
-          {homeLabel ?? "Go to the shared page"}
+        <Link to={home} className="mt-1 rounded-md px-3 py-1.5 text-[14px] text-accent hover:bg-hover">
+          {homeLabel ?? "Go home"}
         </Link>
       )}
     </main>
   );
   // Inside the app the top bar keeps the sidebar reachable on phones.
-  return invited ? (
+  return app ? (
     <div className="flex h-full flex-col">
       <TopBar crumbs={null} />
       {body}

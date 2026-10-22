@@ -9,9 +9,8 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Nested pages with favorites and trash
 - Links between pages (`[[`) with backlinks; links follow renames
 - Daily notes: one click opens today's page
-- Share any page (and the pages inside it) with a link, view-only or editable; editing needs an account
-- Invite people by email to view or edit; pages shared with you appear under "Shared with me"
-- One editor at a time on shared pages, with the editor's name shown to everyone else
+- Share like a doc: invite people by email (with an invitation email) and/or open a page to anyone with the link, view or edit. One link per page; pages shared with you appear under "Shared with me"
+- One editor at a time on shared pages, with the editor's name shown to everyone else; editing always needs an account
 - Version history for every page: preview and restore earlier versions
 - Block editor with images, tables, code and to-dos
 - Search across titles and content (`Ctrl/⌘ K`)
@@ -26,7 +25,7 @@ npm install
 npm run dev
 ```
 
-Requires a Supabase project with `supabase/schema.sql` and `supabase/migrations/*.sql` applied, the `notes` schema exposed in the Data API, and the `share-file` edge function (`supabase/functions/share-file`) deployed with JWT verification off. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`. Optional: `VITE_TURNSTILE_SITE_KEY` turns on a Cloudflare Turnstile check for sign-up, sign-in and password reset (enable CAPTCHA protection in Supabase Auth with the matching secret).
+Requires a Supabase project with `supabase/schema.sql` and `supabase/migrations/*.sql` applied, the `notes` schema exposed in the Data API, and the edge functions in `supabase/functions` deployed: `share-file` with JWT verification off, `send-invite` with it on. Invitation emails need a `RESEND_API_KEY` edge function secret. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`. Optional: `VITE_TURNSTILE_SITE_KEY` turns on a Cloudflare Turnstile check for sign-up, sign-in and password reset (enable CAPTCHA protection in Supabase Auth with the matching secret).
 
 Auth email templates are in `supabase/templates`.
 

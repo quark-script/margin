@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
-import { fetchSharedWithMe, leaveShared, type IncomingShare } from "../lib/share";
+import { fetchSharedWithMe, leaveShared, sendInviteEmail, type IncomingShare, type InviteEmail } from "../lib/share";
 import type { Page } from "../lib/types";
 
 export type Share = { page_id: string; token: string; can_edit: boolean };
@@ -18,7 +18,9 @@ type State = {
   enable: (pageId: string) => Promise<Share>;
   setCanEdit: (pageId: string, canEdit: boolean) => Promise<void>;
   disable: (pageId: string) => Promise<void>;
-  invite: (pageId: string, email: string, canEdit: boolean) => Promise<void>;
+  /** Adds the person and emails them; resolves with whether the email went out. */
+  invite: (pageId: string, email: string, canEdit: boolean) => Promise<InviteEmail>;
+  resendInvite: (pageId: string, email: string) => Promise<InviteEmail>;
   setMemberCanEdit: (pageId: string, email: string, canEdit: boolean) => Promise<void>;
   removeMember: (pageId: string, email: string) => Promise<void>;
   leave: (rootId: string) => Promise<void>;
@@ -87,7 +89,10 @@ export const useShares = create<State>((set, get) => ({
     if (error) throw error;
     const members = get().members;
     set({ members: { ...members, [pageId]: [...(members[pageId] ?? []), row] } });
+    return sendInviteEmail(pageId, row.email);
   },
+
+  resendInvite: (pageId, email) => sendInviteEmail(pageId, email),
 
   async setMemberCanEdit(pageId, email, canEdit) {
     const { error } = await supabase.from("page_members").update({ can_edit: canEdit }).eq("page_id", pageId).eq("email", email);

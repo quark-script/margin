@@ -64,7 +64,8 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
       rememberNext(new URLSearchParams(window.location.search).get("next")) ??
       (useAuth.getState().signedOut ? null : rememberNext(window.location.pathname)),
   );
-  const [email, setEmail] = useState("");
+  // Invitation emails link here with the invited address filled in.
+  const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get("email") ?? "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(linkError);
@@ -152,9 +153,11 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
     forgot: ["Reset your password", "We'll email you a link to set a new password."],
   };
   const [title, defaultSubtitle] = titles[mode];
-  const returnHint = returnTo?.startsWith("/s/")
-    ? "Sign in or create an account to edit the shared page."
-    : "Sign in or create an account to open this page.";
+  // "Sign in to edit" on a shared page adds intent=edit.
+  const returnHint =
+    new URLSearchParams(window.location.search).get("intent") === "edit"
+      ? "Sign in or create an account to edit the shared page."
+      : "Sign in or create an account to open this page.";
   const subtitle = returnTo && mode !== "forgot" ? returnHint : defaultSubtitle;
   const cta = { signin: "Sign in", signup: "Create account", forgot: "Send reset link" }[mode];
 

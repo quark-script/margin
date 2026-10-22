@@ -1,12 +1,12 @@
 import { useEffect } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "./store/auth";
 import { usePages } from "./store/pages";
 import { AppShell } from "./components/AppShell";
 import { Login, SetPassword } from "./pages/Login";
 import { Home } from "./pages/Home";
 import { PageView } from "./pages/PageView";
-import { InvitedPage, LinkSharedPage } from "./pages/SharedView";
+import { PublicPage, TokenRedirect } from "./pages/SharedView";
 import { Landing } from "./pages/Landing";
 import { authLinkErrorCode } from "./lib/supabase";
 import { takeNext } from "./lib/next";
@@ -29,6 +29,12 @@ function HomeRoute() {
     }
   }, [loaded, navigate]);
   return <Home />;
+}
+
+/** Invited pages briefly lived under /shared/; they use the page's own link now. */
+function SharedRedirect() {
+  const { rootId = "", pageId } = useParams();
+  return <Navigate to={`/p/${pageId ?? rootId}`} replace />;
 }
 
 const isInstalled = () =>
@@ -55,12 +61,12 @@ export default function App() {
   if (!ready) return null;
   if (session && recovering) return <SetPassword />;
 
-  // Shared links work for everyone, signed in or not.
+  // Links from before every page had one link (/s/<token>): on to the page, signed in or not.
   if (location.pathname.startsWith("/s/")) {
     return (
       <BrowserRouter>
         <Routes>
-          <Route path="s/:token/:pageId?" element={<LinkSharedPage />} />
+          <Route path="s/:token/:pageId?" element={<TokenRedirect />} />
         </Routes>
       </BrowserRouter>
     );
@@ -73,7 +79,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route index element={<HomeRoute />} />
             <Route path="p/:pageId" element={<PageView />} />
-            <Route path="shared/:rootId/:pageId?" element={<InvitedPage />} />
+            <Route path="shared/:rootId/:pageId?" element={<SharedRedirect />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -82,6 +88,8 @@ export default function App() {
           {/* The installed app, a failed email link and signing out go straight to sign-in. */}
           <Route index element={isInstalled() || authLinkErrorCode || linkFailed || signedOut ? <Login /> : <Landing />} />
           <Route path="signup" element={<Login key="signup" initialMode="signup" />} />
+          {/* A page link: the page itself if it's open to anyone with the link, else sign-in. */}
+          <Route path="p/:pageId" element={<PublicPage />} />
           <Route path="*" element={<Login />} />
         </Routes>
       )}

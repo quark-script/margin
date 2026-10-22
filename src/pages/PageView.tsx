@@ -15,7 +15,8 @@ import { TopBar } from "../components/TopBar";
 import { EditorBoundary } from "../components/EditorBoundary";
 import { ShareMenu } from "../components/ShareMenu";
 import { editableByOthers, useShares } from "../store/shares";
-import { memberRootFor, pageLockInfo } from "../lib/share";
+import { pageLockInfo } from "../lib/share";
+import { SharedPage } from "./SharedView";
 import { useEditLock } from "../lib/useEditLock";
 
 const Editor = lazy(() => import("../components/Editor").then((m) => ({ default: m.Editor })));
@@ -75,24 +76,7 @@ export function PageView() {
   }, [pageId, lockEnabled]);
   const lock = useEditLock(pageId, null, lockEnabled, holder?.editor ?? null);
 
-  // Not one of ours: maybe someone invited us to it (they sent the page's own link).
-  const navigate = useNavigate();
-  const [checkingInvite, setCheckingInvite] = useState(false);
-  const missing = loaded && !page && status !== "syncing";
-  useEffect(() => {
-    if (!missing || !navigator.onLine) return;
-    let alive = true;
-    setCheckingInvite(true);
-    memberRootFor(pageId)
-      .then((root) => {
-        if (alive && root) navigate(root === pageId ? `/shared/${root}` : `/shared/${root}/${pageId}`, { replace: true });
-      })
-      .catch(() => {})
-      .finally(() => alive && setCheckingInvite(false));
-    return () => {
-      alive = false;
-    };
-  }, [missing, pageId, navigate]);
+
 
   const setContent = useCallback((blocks: Parameters<ReturnType<typeof usePages.getState>["setContent"]>[1]) => {
     lock.activity();
@@ -102,24 +86,10 @@ export function PageView() {
 
   if (!loaded) return <PageSkeleton />;
 
+  // Not one of ours: someone may have shared it (invited us, or anyone with the link).
   if (!page) {
-    return (
-      <div className="flex h-full flex-col">
-        <TopBar crumbs={null} />
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          {status === "syncing" || checkingInvite ? (
-            <p className="text-[15px] text-muted">Looking for this page…</p>
-          ) : (
-            <>
-              <p className="text-[15px] text-ink">This page doesn't exist or was deleted.</p>
-              <Link to="/" className="rounded-md px-3 py-1.5 text-[14px] text-accent hover:bg-hover">
-                Go to home
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-    );
+    if (status === "syncing") return <PageSkeleton />;
+    return <SharedPage pageId={pageId} />;
   }
 
   return (

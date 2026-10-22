@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { SITE_URL, supabase } from "./supabase";
 import type { Block } from "./types";
 
 /** One id per browser tab, so two tabs of the same person also take turns editing. */
@@ -15,10 +15,12 @@ export const editorId = (() => {
   }
 })();
 
-export const shareUrl = (token: string) => `${location.origin}/s/${token}`;
+/** Every page has one link. What it opens depends on who follows it. */
+export const pageUrl = (pageId: string) => `${SITE_URL}/p/${pageId}`;
 
-export const sharedFileUrl = (token: string, path: string) =>
-  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/share-file?token=${encodeURIComponent(token)}&path=${encodeURIComponent(path)}`;
+/** Images on a page shared with "Anyone with the link", for visitors without access to storage. */
+export const sharedFileUrl = (rootId: string, path: string) =>
+  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/share-file?page=${encodeURIComponent(rootId)}&path=${encodeURIComponent(path)}`;
 
 export type SharedPage = {
   id: string;
@@ -30,9 +32,13 @@ export type SharedPage = {
   created_at: string;
   updated_at: string;
 };
-export type SharedTree = { can_edit: boolean; root_id: string; pages: SharedPage[] };
+/** How someone who isn't the owner reached a page: invited, or anyone with the link. */
+export type Via = "invite" | "link";
+export type SharedTree = { root_id: string; can_edit: boolean; via: Via; pages: SharedPage[] };
 export type SharedState = {
+  root_id: string;
   can_edit: boolean;
+  via: Via;
   pages: { id: string; updated_at: string }[];
   locks: { page_id: string; editor: string; name?: string | null }[];
 };
@@ -42,16 +48,6 @@ async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   if (error) throw error;
   return data as T;
 }
-
-export const fetchShared = (token: string) => rpc<SharedTree | null>("shared_pages", { p_token: token });
-export const fetchSharedState = (token: string) => rpc<SharedState | null>("shared_state", { p_token: token });
-
-/** Take or renew the edit lock. `token` is null for the owner. */
-export const lockPage = (pageId: string, token: string | null) =>
-  rpc<{ ok: boolean }>("lock_page", { p_page_id: pageId, p_editor: editorId, p_token: token });
-
-export const unlockPage = (pageId: string) =>
-  rpc<null>("unlock_page", { p_page_id: pageId, p_editor: editorId }).catch(() => null);
 
 /**
  * For pagehide: a normal request is cancelled with the page; keepalive lets it finish (browsers
@@ -73,47 +69,53 @@ function rpcOnExit(fn: string, args: Record<string, unknown>, accessToken?: stri
   }).catch(() => {});
 }
 
+/** A page someone shared, and the pages inside it. Null without access. */
+export const fetchTree = (pageId: string) => rpc<SharedTree | null>("shared_tree", { p_page_id: pageId });
+/** Cheap poll for an open shared page: what changed, who is editing. */
+export const fetchTreeState = (pageId: string) => rpc<SharedState | null>("shared_tree_state", { p_page_id: pageId });
+
+export const saveSharedPage = (pageId: string, content: Block[], searchText: string) =>
+  rpc<{ ok: boolean; reason?: string; updated_at?: string }>("shared_page_save", {
+    p_page_id: pageId,
+    p_editor: editorId,
+    p_content: content,
+    p_search_text: searchText,
+  });
+
+export const saveSharedPageOnExit = (pageId: string, content: Block[], searchText: string, accessToken: string) =>
+  rpcOnExit("shared_page_save", { p_page_id: pageId, p_editor: editorId, p_content: content, p_search_text: searchText }, accessToken);
+
+/** Links from before every page had one link (/s/<token>): the page they point at. */
+export const shareRoot = (token: string) => rpc<string | null>("share_root", { p_token: token });
+
+/** Take or renew the edit lock. Always without a token now; the server checks access. */
+export const lockPage = (pageId: string, token: string | null = null) =>
+  rpc<{ ok: boolean }>("lock_page", { p_page_id: pageId, p_editor: editorId, p_token: token });
+
+export const unlockPage = (pageId: string) =>
+  rpc<null>("unlock_page", { p_page_id: pageId, p_editor: editorId }).catch(() => null);
+
 export const unlockPageOnExit = (pageId: string) => rpcOnExit("unlock_page", { p_page_id: pageId, p_editor: editorId });
 
 /** Owner only: who holds the page's lock right now (their editor id and name), if anyone. */
 export const pageLockInfo = (pageId: string) =>
   rpc<{ editor: string; name: string | null } | null>("page_lock_info", { p_page_id: pageId });
 
-export const saveShared = (token: string, pageId: string, content: Block[], searchText: string) =>
-  rpc<{ ok: boolean; reason?: string; updated_at?: string }>("shared_save", {
-    p_token: token,
-    p_page_id: pageId,
-    p_editor: editorId,
-    p_content: content,
-    p_search_text: searchText,
-  });
-
-/** pagehide variant of saveShared. */
-export const saveSharedOnExit = (token: string, pageId: string, content: Block[], searchText: string, accessToken: string) =>
-  rpcOnExit(
-    "shared_save",
-    { p_token: token, p_page_id: pageId, p_editor: editorId, p_content: content, p_search_text: searchText },
-    accessToken,
-  );
-
-/* ---- Pages shared by invite: the same operations, keyed by the invited page instead of a token. ---- */
-
 export type IncomingShare = { page_id: string; title: string; icon: string | null; owner_name: string | null; can_edit: boolean };
 
+/** Pages other people invited this user to. */
 export const fetchSharedWithMe = () => rpc<IncomingShare[]>("shared_with_me", {});
-export const fetchMember = (root: string) => rpc<SharedTree | null>("member_pages", { p_root: root });
-export const fetchMemberState = (root: string) => rpc<SharedState | null>("member_state", { p_root: root });
 export const leaveShared = (root: string) => rpc<null>("leave_shared", { p_root: root });
-/** Someone opened /p/<id> of a page that isn't theirs: the invited page it's part of, if any. */
-export const memberRootFor = (pageId: string) => rpc<string | null>("member_root_for", { p_page_id: pageId });
 
-export const saveMember = (pageId: string, content: Block[], searchText: string) =>
-  rpc<{ ok: boolean; reason?: string; updated_at?: string }>("member_save", {
-    p_page_id: pageId,
-    p_editor: editorId,
-    p_content: content,
-    p_search_text: searchText,
-  });
+export type InviteEmail = { sent: boolean; reason?: "not_configured" | "limit" | "recent" | "send_failed" | "error" };
 
-export const saveMemberOnExit = (pageId: string, content: Block[], searchText: string, accessToken: string) =>
-  rpcOnExit("member_save", { p_page_id: pageId, p_editor: editorId, p_content: content, p_search_text: searchText }, accessToken);
+/** Email the invitation. The invite itself already exists; this only sends the message. */
+export async function sendInviteEmail(pageId: string, email: string): Promise<InviteEmail> {
+  try {
+    const { data, error } = await supabase.functions.invoke("send-invite", { body: { page_id: pageId, email } });
+    if (error) return { sent: false, reason: "error" };
+    return data as InviteEmail;
+  } catch {
+    return { sent: false, reason: "error" };
+  }
+}

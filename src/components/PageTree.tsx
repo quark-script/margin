@@ -83,14 +83,13 @@ const TreeItem = memo(function TreeItem({ id, depth }: { id: string; depth: numb
             {page.icon || <FileText size={16} className="text-faint" strokeWidth={1.75} />}
           </span>
           <span className={`truncate ${page.title.trim() ? "" : "text-faint"}`}>{displayTitle(page.title)}</span>
-          {linkShared && (
-            <span title="Shared with a link" aria-label="Shared with a link" className="shrink-0 text-faint">
-              <Globe size={12} strokeWidth={2} />
-            </span>
-          )}
-          {invited && (
-            <span title="Shared with people" aria-label="Shared with people" className="shrink-0 text-faint">
-              <Users size={12} strokeWidth={2} />
+          {(linkShared || invited) && (
+            <span
+              title={linkShared ? "Anyone with the link can open" : "Shared with people"}
+              aria-label="Shared"
+              className="shrink-0 text-faint"
+            >
+              {linkShared ? <Globe size={12} strokeWidth={2} /> : <Users size={12} strokeWidth={2} />}
             </span>
           )}
         </NavLink>

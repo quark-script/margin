@@ -10,18 +10,25 @@ type Props = {
   children: ReactNode;
 };
 
+// Open popovers, innermost last. A menu opened from inside a popover (a role picker in the
+// share panel) is a separate portal, so only the innermost one reacts to outside clicks and
+// Escape; otherwise picking an item would also close the panel behind it.
+const openStack: symbol[] = [];
+
 /** A small floating panel anchored to a button. Closes on outside click and Escape. */
 export function Popover({ anchor, open, onClose, align = "start", width = 220, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [id] = useState(() => Symbol("popover"));
 
   useLayoutEffect(() => {
     if (!open || !anchor) return;
     const r = anchor.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    let left = align === "end" ? r.right - width : r.left;
-    left = Math.max(8, Math.min(left, vw - width - 8));
+    const w = Math.min(width, vw - 16); // never wider than a phone screen
+    let left = align === "end" ? r.right - w : r.left;
+    left = Math.max(8, Math.min(left, vw - w - 8));
     let top = r.bottom + 4;
     const h = ref.current?.offsetHeight ?? 240;
     if (top + h > vh - 8) top = Math.max(8, r.top - h - 4);
@@ -30,26 +37,33 @@ export function Popover({ anchor, open, onClose, align = "start", width = 220, c
 
   useEffect(() => {
     if (!open) return;
+    openStack.push(id);
+    const innermost = () => openStack[openStack.length - 1] === id;
     const onDown = (e: PointerEvent) => {
       const t = e.target as Node;
-      if (ref.current?.contains(t) || anchor?.contains(t)) return;
+      if (!innermost() || ref.current?.contains(t) || anchor?.contains(t)) return;
       onClose();
     };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !innermost()) return;
+      e.stopPropagation();
+      onClose();
+    };
     document.addEventListener("pointerdown", onDown, true);
     document.addEventListener("keydown", onKey);
     return () => {
+      openStack.splice(openStack.indexOf(id), 1);
       document.removeEventListener("pointerdown", onDown, true);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, anchor, onClose]);
+  }, [open, anchor, onClose, id]);
 
   if (!open) return null;
   return createPortal(
     <div
       ref={ref}
       role="menu"
-      style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, width }}
+      style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, width: `min(${width}px, calc(100vw - 16px))` }}
       className="fixed z-50 rounded-lg bg-pop p-1 shadow-pop"
     >
       {children}

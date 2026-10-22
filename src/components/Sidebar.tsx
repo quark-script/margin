@@ -173,7 +173,7 @@ function SharedWithMe() {
       {incoming.map((p) => (
         <NavLink
           key={p.page_id}
-          to={`/shared/${p.page_id}`}
+          to={`/p/${p.page_id}`}
           onClick={() => setSidebarOpen(false)}
           title={p.owner_name ? `Shared by ${p.owner_name}` : undefined}
           className={({ isActive }) =>
@@ -186,7 +186,6 @@ function SharedWithMe() {
             {p.icon || <FileText size={16} className="text-faint" strokeWidth={1.75} />}
           </span>
           <span className="min-w-0 flex-1 truncate">{displayTitle(p.title)}</span>
-          {p.owner_name && <span className="shrink-0 truncate text-[12px] text-faint">{p.owner_name}</span>}
         </NavLink>
       ))}
     </section>
