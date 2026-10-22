@@ -68,6 +68,7 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
   // Invitation emails link here with the invited address filled in.
   const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get("email") ?? "");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(linkError);
   const [info, setInfo] = useState<string | null>(null);
@@ -103,10 +104,12 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password, options: opts() });
         if (error) throw error;
       } else if (mode === "signup") {
+        const fullName = name.trim().slice(0, 60);
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { ...opts(), emailRedirectTo: redirect },
+          // The name people you share pages with will see.
+          options: { ...opts(), emailRedirectTo: redirect, ...(fullName ? { data: { full_name: fullName } } : {}) },
         });
         if (error) throw error;
         // With email confirmation on there's no session yet: ask them to check their inbox.
@@ -198,6 +201,21 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
         </>
       )}
       <form onSubmit={submit} className={`${withGoogle ? "mt-5" : "mt-7"} space-y-3`}>
+        {mode === "signup" && (
+          <label className="block">
+            <span className="mb-1.5 flex items-baseline justify-between text-[13px] font-medium text-ink">
+              Name <span className="font-normal text-faint">Optional</span>
+            </span>
+            <input
+              type="text"
+              autoComplete="name"
+              maxLength={60}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={field}
+            />
+          </label>
+        )}
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-medium text-ink">Email</span>
           <input

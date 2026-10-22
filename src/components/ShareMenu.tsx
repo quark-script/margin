@@ -40,6 +40,10 @@ function SharePanel({ pageId }: { pageId: string }) {
   const allMembers = useShares((s) => s.members);
   const direct = useShares((s) => s.members[pageId]) ?? NO_MEMBERS;
   const myEmail = useAuth((s) => s.session?.user.email?.toLowerCase() ?? "");
+  const myName = useAuth((s) => {
+    const m = s.session?.user.user_metadata as { full_name?: string; name?: string } | undefined;
+    return m?.full_name?.trim() || m?.name?.trim() || "";
+  });
   const [copied, setCopied] = useState(false);
 
   // People invited to a page above this one can open it too.
@@ -68,7 +72,13 @@ function SharePanel({ pageId }: { pageId: string }) {
         <InviteForm pageId={pageId} taken={(email) => email === myEmail || directEmails.has(email)} />
 
         <ul aria-label="People with access" className="mt-3">
-          <Person initial={myEmail[0]} name="You" detail={myEmail} owner right={<span className="px-2 text-[13px] text-faint">Owner</span>} />
+          <Person
+            initial={(myName || myEmail)[0]}
+            name={myName ? `${myName} (you)` : "You"}
+            detail={myEmail}
+            owner
+            right={<span className="px-2 text-[13px] text-faint">Owner</span>}
+          />
           {direct.map((m) => (
             <Person key={m.email} initial={m.email[0]} name={m.email} right={<MemberRole pageId={pageId} member={m} />} />
           ))}

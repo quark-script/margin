@@ -21,7 +21,11 @@ export function Home() {
   const loaded = usePages((s) => s.loaded);
   const setSwitcherOpen = useUi((s) => s.setSwitcherOpen);
   const navigate = useNavigate();
-  const name = useAuth((s) => s.session?.user.user_metadata?.name as string | undefined);
+  // First name, from the name you set (or Google's).
+  const name = useAuth((s) => {
+    const m = s.session?.user.user_metadata as { full_name?: string; name?: string } | undefined;
+    return (m?.full_name || m?.name || "").trim().split(/\s+/)[0] || undefined;
+  });
 
   const recent = useMemo(
     () =>

@@ -6,6 +6,7 @@ import {
   Download,
   FileText,
   KeyRound,
+  UserRound,
   LogOut,
   Monitor,
   Moon,
@@ -28,6 +29,7 @@ import { IconButton, MenuDivider, MenuItem, Popover } from "./Menu";
 import { SyncStatus } from "./SyncStatus";
 import { openToday } from "../lib/daily";
 import { download } from "../lib/download";
+import { NameDialog } from "./NameDialog";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const modKey = isMac ? "⌘" : "Ctrl";
@@ -268,6 +270,7 @@ function AccountMenu() {
   const photo = !photoFailed ? meta?.avatar_url : undefined;
   // Signed up with Google only: there's no password yet, so offer to set one.
   const hasPassword = useAuth((s) => s.session?.user.identities?.some((i) => i.provider === "email") ?? true);
+  const [naming, setNaming] = useState(false);
 
   const themeItem = (value: ThemePref, label: string, icon: React.ReactNode) => (
     <MenuItem icon={icon} onClick={() => setPref(value)} hint={pref === value ? "✓" : undefined}>
@@ -315,6 +318,15 @@ function AccountMenu() {
         </MenuItem>
         <MenuDivider />
         <MenuItem
+          icon={<UserRound size={15} />}
+          onClick={() => {
+            close();
+            setNaming(true);
+          }}
+        >
+          {name ? "Change your name" : "Add your name"}
+        </MenuItem>
+        <MenuItem
           icon={<KeyRound size={15} />}
           onClick={() => {
             close();
@@ -333,6 +345,7 @@ function AccountMenu() {
           Sign out
         </MenuItem>
       </Popover>
+      {naming && <NameDialog onClose={() => setNaming(false)} />}
       <input
         ref={fileInput}
         type="file"
