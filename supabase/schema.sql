@@ -1,6 +1,7 @@
 -- Current schema of the "notes" app in the "upkeep" Supabase project. Applied as migration
 -- "notes_init" (2026-10-21), with the parent-ownership policies fixed afterwards (see
--- migrations/20261021_fix_policy_recursion.sql).
+-- migrations/20261021_fix_policy_recursion.sql). Sharing (shares, page_locks and the share
+-- functions) is in migrations/20261022_sharing.sql.
 create schema if not exists notes;
 
 create table notes.pages (

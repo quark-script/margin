@@ -173,6 +173,43 @@ button {
   padding-inline: 0;
 }
 
+/* Minimal on/off switch (Share menu) */
+.toggle {
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--line);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--paper);
+  transition: transform 0.15s;
+}
+.toggle:checked {
+  background: var(--accent);
+}
+.toggle:checked::after {
+  transform: translateX(14px);
+}
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.toggle:disabled {
+  opacity: 0.5;
+}
+
 /* Links to other pages ([[ menu). Accent is reserved for links, so these use it too. */
 .page-link {
   display: inline;

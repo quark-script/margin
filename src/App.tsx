@@ -6,6 +6,7 @@ import { AppShell } from "./components/AppShell";
 import { Login, SetPassword } from "./pages/Login";
 import { Home } from "./pages/Home";
 import { PageView } from "./pages/PageView";
+import { SharedView } from "./pages/SharedView";
 
 let reopenedLastPage = false;
 
@@ -37,6 +38,17 @@ export default function App() {
 
   if (!ready) return null;
   if (session && recovering) return <SetPassword />;
+
+  // Shared links work for everyone, signed in or not.
+  if (location.pathname.startsWith("/s/")) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="s/:token/:pageId?" element={<SharedView />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
 
   return (
     <BrowserRouter>

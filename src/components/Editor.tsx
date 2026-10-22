@@ -56,12 +56,26 @@ function insertPageLink(editor: Ed, pageId: string) {
   editor.insertInlineContent([{ type: "pageLink", props: { pageId } }, " "]);
 }
 
-/** Items for the `[[` menu: matching pages, plus "create" when nothing has that exact title. */
-function pageLinkItems(editor: Ed, currentPageId: string, query: string): DefaultReactSuggestionItem[] {
+export type LinkCandidate = { id: string; title: string; icon: string | null; updated_at: string };
+
+function ownPages(): LinkCandidate[] {
   const { pages } = usePages.getState();
+  return Object.values(pages).filter((p) => !isTrashed(pages, p.id));
+}
+
+/**
+ * Items for the `[[` menu: matching pages, plus "create" when nothing has that exact title.
+ * Shared pages pass their own candidates and can't create pages.
+ */
+function pageLinkItems(
+  editor: Ed,
+  currentPageId: string,
+  query: string,
+  candidates?: () => LinkCandidate[],
+): DefaultReactSuggestionItem[] {
   const q = query.trim().toLowerCase();
-  const matches = Object.values(pages)
-    .filter((p) => p.id !== currentPageId && !isTrashed(pages, p.id))
+  const matches = (candidates ?? ownPages)()
+    .filter((p) => p.id !== currentPageId)
     .filter((p) => !q || displayTitle(p.title).toLowerCase().includes(q))
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     .slice(0, 12)
@@ -71,7 +85,7 @@ function pageLinkItems(editor: Ed, currentPageId: string, query: string): Defaul
       onItemClick: () => insertPageLink(editor, p.id),
     }));
   const exact = matches.some((m) => m.title.toLowerCase() === q);
-  if (q && !exact) {
+  if (q && !exact && !candidates) {
     const title = query.trim();
     matches.push({
       title: `Create “${title}”`,
@@ -144,19 +158,34 @@ type Props = {
   editable: boolean;
   onChange: (blocks: Block[]) => void;
   onReady?: (editor: BlockNoteEditor<any, any, any>) => void;
+  /** Shared pages: how to show images (and no uploads), and which pages `[[` can link to. */
+  files?: { resolve: (url: string) => Promise<string>; upload?: (file: File) => Promise<string> };
+  linkCandidates?: () => LinkCandidate[];
+  onFocusChange?: (focused: boolean) => void;
 };
 
 /**
  * The editor is recreated only when the page changes or another device changed this page's
  * content (`rev`). Local typing never recreates it, so the cursor never jumps.
  */
-export function Editor({ pageId, rev, initialContent, isDark, editable, onChange, onReady }: Props) {
+export function Editor({
+  pageId,
+  rev,
+  initialContent,
+  isDark,
+  editable,
+  onChange,
+  onReady,
+  files,
+  linkCandidates,
+  onFocusChange,
+}: Props) {
   const editor = useCreateBlockNote(
     {
       schema,
       initialContent: initialContent.length ? (toKnownContent(initialContent) as unknown as PartialBlock<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>[]) : undefined,
-      uploadFile,
-      resolveFileUrl,
+      uploadFile: files ? files.upload : uploadFile,
+      resolveFileUrl: files ? files.resolve : resolveFileUrl,
       animations: false,
       dictionary,
     },
@@ -171,7 +200,16 @@ export function Editor({ pageId, rev, initialContent, isDark, editable, onChange
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
+  const focusRef = useRef(onFocusChange);
+  focusRef.current = onFocusChange;
+
   return (
+    <div
+      onFocus={() => focusRef.current?.(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) focusRef.current?.(false);
+      }}
+    >
     <BlockNoteView
       editor={editor}
       editable={editable}
@@ -183,8 +221,9 @@ export function Editor({ pageId, rev, initialContent, isDark, editable, onChange
       <SuggestionMenuController triggerCharacter="/" getItems={async (q) => slashItems(editor, q)} />
       <SuggestionMenuController
         triggerCharacter={LINK_TRIGGER}
-        getItems={async (q) => pageLinkItems(editor, pageId, q)}
+        getItems={async (q) => pageLinkItems(editor, pageId, q, linkCandidates)}
       />
     </BlockNoteView>
+    </div>
   );
 }

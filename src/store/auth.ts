@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Session } from "@supabase/supabase-js";
 import { recoveryInUrl, supabase } from "../lib/supabase";
 import { hasPending, usePages } from "./pages";
+import { useShares } from "./shares";
 
 type AuthState = {
   session: Session | null;
@@ -29,11 +30,17 @@ export const useAuth = create<AuthState>((set) => ({
     // getSession reads from local storage, so this works offline too.
     void supabase.auth.getSession().then(({ data }) => {
       set({ session: data.session, ready: true });
-      if (data.session) void usePages.getState().init(data.session.user.id);
+      if (data.session) {
+        void usePages.getState().init(data.session.user.id);
+        void useShares.getState().load();
+      }
     });
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       set({ session, ready: true, ...(event === "PASSWORD_RECOVERY" ? { recovering: true } : {}) });
-      if (session) void usePages.getState().init(session.user.id);
+      if (session) {
+        void usePages.getState().init(session.user.id);
+        if (event === "SIGNED_IN") void useShares.getState().load();
+      }
     });
     return () => data.subscription.unsubscribe();
   },
@@ -48,6 +55,7 @@ export const useAuth = create<AuthState>((set) => ({
       return false;
     }
     await usePages.getState().reset();
+    useShares.getState().reset();
     await supabase.auth.signOut();
     set({ session: null });
     return true;

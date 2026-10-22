@@ -13,6 +13,10 @@ import { IconButton, Popover } from "../components/Menu";
 import { PageMenu } from "../components/PageTree";
 import { TopBar } from "../components/TopBar";
 import { EditorBoundary } from "../components/EditorBoundary";
+import { ShareMenu } from "../components/ShareMenu";
+import { shareCovering, useShares } from "../store/shares";
+import { pageLockHolder } from "../lib/share";
+import { useEditLock } from "../lib/useEditLock";
 
 const Editor = lazy(() => import("../components/Editor").then((m) => ({ default: m.Editor })));
 
@@ -51,9 +55,30 @@ export function PageView() {
     }
   }, [page?.title, page?.icon, page?.id, page]);
 
+  // Pages inside a share that allows editing take turns: whoever is typing holds the page.
+  const pages = usePages((s) => s.pages);
+  const shares = useShares((s) => s.shares);
+  const lockEnabled = Boolean(shareCovering(pages, shares, pageId)?.share.can_edit) && !trashed;
+  const [holder, setHolder] = useState<string | null>(null);
+  useEffect(() => {
+    setHolder(null);
+    if (!lockEnabled) return;
+    let alive = true;
+    const poll = () => pageLockHolder(pageId).then((h) => alive && setHolder(h)).catch(() => {});
+    void poll();
+    const t = setInterval(poll, 4000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [pageId, lockEnabled]);
+  const lock = useEditLock(pageId, null, lockEnabled, holder);
+
   const setContent = useCallback((blocks: Parameters<ReturnType<typeof usePages.getState>["setContent"]>[1]) => {
+    lock.activity();
     usePages.getState().setContent(pageId, blocks);
-  }, [pageId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId, lock.activity]);
 
   if (!loaded) return <PageSkeleton />;
 
@@ -83,6 +108,7 @@ export function PageView() {
         crumbs={[...ancestors, page].map((p) => ({ id: p.id, icon: p.icon, title: displayTitle(p.title) }))}
         right={
           <>
+            {!trashed && <ShareMenu pageId={page.id} />}
             {!trashed && (
               <IconButton
                 label={page.is_favorite ? "Remove from favorites" : "Add to favorites"}
@@ -101,6 +127,7 @@ export function PageView() {
       />
 
       {trashed && <TrashedBanner pageId={page.id} archivedSelf={page.is_archived} />}
+      {lock.heldByOther && <EditingElsewhereBanner />}
 
       <div className="min-h-0 flex-1 overflow-y-auto" id="page-scroll">
         <article className="mx-auto w-full max-w-[760px] px-5 pb-[40vh] pt-10 sm:px-14 sm:pt-16">
@@ -123,8 +150,9 @@ export function PageView() {
               rev={rev}
               initialContent={page.content}
               isDark={isDark}
-              editable={!trashed}
+              editable={!trashed && !lock.heldByOther}
               onChange={setContent}
+              onFocusChange={(focused) => (focused ? void lock.acquire() : lock.blurred())}
               onReady={(ed) => {
                 editorRef.current = ed;
                 if (focusBodyWhenReady.current) {
@@ -292,6 +320,14 @@ function Backlinks({ pageId }: { pageId: string }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+function EditingElsewhereBanner() {
+  return (
+    <div className="border-b border-line px-4 py-2 text-center text-[14px] text-muted">
+      Someone is editing this page from a share link. It updates live; you can edit when they stop.
+    </div>
   );
 }
 

@@ -9,6 +9,7 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Nested pages with favorites and trash
 - Links between pages (`[[`) with backlinks; links follow renames
 - Daily notes: one click opens today's page
+- Share any page (and the pages inside it) with a link, view-only or editable; one editor at a time
 - Block editor with images, tables, code and to-dos
 - Search across titles and content (`Ctrl/⌘ K`)
 - Works offline; syncs and updates live across devices
@@ -21,7 +22,7 @@ npm install
 npm run dev
 ```
 
-Requires a Supabase project with `supabase/schema.sql` applied and the `notes` schema exposed in the Data API. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`.
+Requires a Supabase project with `supabase/schema.sql` and `supabase/migrations/*.sql` applied, the `notes` schema exposed in the Data API, and the `share-file` edge function (`supabase/functions/share-file`) deployed with JWT verification off. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`.
 
 ## Deployment
 
