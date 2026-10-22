@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, usePa
 import { useAuth } from "./store/auth";
 import { usePages } from "./store/pages";
 import { AppShell } from "./components/AppShell";
-import { Login, SetPassword } from "./pages/Login";
+import { AccountDeleted, Login, SetPassword } from "./pages/Login";
 import { Home } from "./pages/Home";
 import { PageView } from "./pages/PageView";
 import { PublicPage, TokenRedirect } from "./pages/SharedView";
@@ -61,6 +61,7 @@ export default function App() {
   const start = useAuth((s) => s.start);
   const linkFailed = useAuth((s) => s.linkFailed);
   const signedOut = useAuth((s) => s.signedOut);
+  const deleted = useAuth((s) => s.deleted);
 
   useEffect(() => start(), [start]);
 
@@ -72,6 +73,7 @@ export default function App() {
   }, [session, recovering]);
 
   if (!ready) return null;
+  if (deleted) return <AccountDeleted />;
   if (session && recovering) return <SetPassword />;
 
   // Links from before every page had one link (/s/<token>): on to the page, signed in or not.

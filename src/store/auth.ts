@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Session } from "@supabase/supabase-js";
 import { emailLink, recoveryInUrl, supabase } from "../lib/supabase";
-import { hasPending, usePages } from "./pages";
+import { dropSignedOutCopies, hasPending, usePages } from "./pages";
 import { useShares } from "./shares";
 
 type AuthState = {
@@ -15,11 +15,15 @@ type AuthState = {
   linkFailed: boolean;
   /** Signed out in this tab: show the sign-in form, not the landing page. */
   signedOut: boolean;
+  /** Just deleted the account here. */
+  deleted: boolean;
   changePassword: () => void;
   finishRecovery: () => void;
   start: () => () => void;
   /** Resolves false if the user cancelled because unsynced edits would be lost. */
   signOut: () => Promise<boolean>;
+  /** After the server deleted the account: wipe this device's copy and sign out here. */
+  finishDeletion: () => Promise<void>;
 };
 
 export const useAuth = create<AuthState>((set) => ({
@@ -29,6 +33,7 @@ export const useAuth = create<AuthState>((set) => ({
   changingPassword: false,
   linkFailed: false,
   signedOut: false,
+  deleted: false,
   changePassword: () => set({ recovering: true, changingPassword: true }),
   finishRecovery: () => set({ recovering: false, changingPassword: false }),
 
@@ -52,6 +57,9 @@ export const useAuth = create<AuthState>((set) => ({
       if (session) {
         void usePages.getState().init(session.user.id);
         if (event === "SIGNED_IN") void useShares.getState().load();
+      } else if (event === "SIGNED_OUT" || event === "INITIAL_SESSION") {
+        dropSignedOutCopies().catch(() => {}); // storage can be unavailable (some private windows)
+        useShares.getState().reset();
       }
     });
     return () => data.subscription.unsubscribe();
@@ -71,5 +79,15 @@ export const useAuth = create<AuthState>((set) => ({
     await supabase.auth.signOut();
     set({ session: null, signedOut: true });
     return true;
+  },
+
+  async finishDeletion() {
+    // Leave the app first, so nothing on screen reacts to the pages disappearing.
+    set({ deleted: true });
+    await usePages.getState().reset();
+    useShares.getState().reset();
+    // The server ended every session with the sign-in; this only clears the one stored here.
+    await supabase.auth.signOut({ scope: "local" });
+    set({ session: null });
   },
 }));

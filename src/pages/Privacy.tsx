@@ -73,8 +73,9 @@ export function Privacy() {
 
         <Section title="On your device">
           <p>
-            So that it works offline, Margin keeps a copy of your notes in your browser's storage. Signing out removes it from
-            that device.
+            So that it works offline, Margin keeps a copy of your notes in your browser's storage. Signing out or deleting your
+            account removes it from that device. Your other devices remove their copy within about an hour of being online,
+            unless they hold edits that never synced.
           </p>
         </Section>
 
@@ -84,7 +85,12 @@ export function Privacy() {
             <li>Version history keeps every version for 30 days, then one version per day.</li>
             <li>You can delete pages at any time (Trash, then Delete forever) and export everything as Markdown from the account menu.</li>
             <li>
-              To delete your account and all your data, email{" "}
+              You can delete your account from the account menu (Delete account). Your pages, images, version history and
+              sharing are deleted right away, and this can't be undone. Edits you made to pages other people own stay on their
+              pages, without your name.
+            </li>
+            <li>
+              If you can't sign in to do that, email{" "}
               <a href={`mailto:${CONTACT}`} className="text-accent hover:underline">{CONTACT}</a> from the address you signed up
               with. It's done within 30 days.
             </li>

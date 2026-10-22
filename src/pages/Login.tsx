@@ -299,6 +299,22 @@ function GoogleLogo() {
   );
 }
 
+/** Shown once, right after deleting your account. */
+export function AccountDeleted() {
+  // Refreshing from here should land on the front page, not on the page you were on.
+  useEffect(() => history.replaceState(null, "", "/"), []);
+  return (
+    <Shell title="Your account is deleted" subtitle="Your pages, images and history are gone for good. Thanks for using Margin.">
+      <div className="mt-7">
+        {/* A full load, so nothing from the deleted account stays in memory. */}
+        <a href="/" className={`${primary} flex items-center justify-center`}>
+          Done
+        </a>
+      </div>
+    </Shell>
+  );
+}
+
 /** Shown after opening a password-reset link: Supabase has signed us in for recovery only. */
 export function SetPassword() {
   const [password, setPassword] = useState("");

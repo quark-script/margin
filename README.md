@@ -17,6 +17,7 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Import Markdown (an Obsidian vault as a .zip, or .md files) and export everything as Markdown
 - Works offline; syncs and updates live across devices
 - Light and dark themes, mobile layout
+- Sign in with email or Google; delete your account and all its data from the account menu
 
 ## Development
 
@@ -25,7 +26,7 @@ npm install
 npm run dev
 ```
 
-Requires a Supabase project with `supabase/schema.sql` and `supabase/migrations/*.sql` applied, the `notes` schema exposed in the Data API, and the edge functions in `supabase/functions` deployed: `share-file` with JWT verification off, `send-invite` with it on. Invitation emails need a `RESEND_API_KEY` edge function secret. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`. Optional: `VITE_TURNSTILE_SITE_KEY` turns on a Cloudflare Turnstile check for sign-up, sign-in and password reset (enable CAPTCHA protection in Supabase Auth with the matching secret).
+Requires a Supabase project with `supabase/schema.sql` and `supabase/migrations/*.sql` applied, the `notes` schema exposed in the Data API, and the edge functions in `supabase/functions` deployed: `share-file` with JWT verification off, `send-invite` and `delete-account` with it on. Invitation emails need a `RESEND_API_KEY` edge function secret. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`. Optional: `VITE_TURNSTILE_SITE_KEY` turns on a Cloudflare Turnstile check for sign-up, sign-in and password reset (enable CAPTCHA protection in Supabase Auth with the matching secret).
 
 Auth email templates are in `supabase/templates`.
 

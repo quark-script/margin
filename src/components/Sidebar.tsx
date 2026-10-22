@@ -16,6 +16,7 @@ import {
   Sun,
   Trash2,
   Upload,
+  UserRoundX,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { usePages } from "../store/pages";
@@ -30,6 +31,7 @@ import { SyncStatus } from "./SyncStatus";
 import { openToday } from "../lib/daily";
 import { download } from "../lib/download";
 import { NameDialog } from "./NameDialog";
+import { DeleteAccountDialog } from "./DeleteAccountDialog";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const modKey = isMac ? "⌘" : "Ctrl";
@@ -242,14 +244,14 @@ function AccountMenu() {
     }
   };
 
-  const exportAll = () =>
-    run("Preparing your export…", async () => {
-      const { exportPages } = await import("../lib/markdown");
-      const res = await exportPages(null);
-      download(res.blob, res.filename);
-      const missing = res.missingImages ? ` ${res.missingImages} image(s) couldn't be downloaded.` : "";
-      return `Exported ${res.pages} page${res.pages === 1 ? "" : "s"}.${missing}`;
-    });
+  const exportEverything = async () => {
+    const { exportPages } = await import("../lib/markdown");
+    const res = await exportPages(null);
+    download(res.blob, res.filename);
+    const missing = res.missingImages ? ` ${res.missingImages} image(s) couldn't be downloaded.` : "";
+    return `Exported ${res.pages} page${res.pages === 1 ? "" : "s"}.${missing}`;
+  };
+  const exportAll = () => run("Preparing your export…", exportEverything);
 
   const importPicked = (files: File[]) =>
     run("Importing…", async () => {
@@ -271,6 +273,7 @@ function AccountMenu() {
   // Signed up with Google only: there's no password yet, so offer to set one.
   const hasPassword = useAuth((s) => s.session?.user.identities?.some((i) => i.provider === "email") ?? true);
   const [naming, setNaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const themeItem = (value: ThemePref, label: string, icon: React.ReactNode) => (
     <MenuItem icon={icon} onClick={() => setPref(value)} hint={pref === value ? "✓" : undefined}>
@@ -344,8 +347,20 @@ function AccountMenu() {
         >
           Sign out
         </MenuItem>
+        <MenuDivider />
+        <MenuItem
+          danger
+          icon={<UserRoundX size={15} />}
+          onClick={() => {
+            close();
+            setDeleting(true);
+          }}
+        >
+          Delete account
+        </MenuItem>
       </Popover>
       {naming && <NameDialog onClose={() => setNaming(false)} />}
+      {deleting && <DeleteAccountDialog onClose={() => setDeleting(false)} onExport={exportEverything} />}
       <input
         ref={fileInput}
         type="file"

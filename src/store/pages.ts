@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { get as idbGet, set as idbSet, delMany } from "idb-keyval";
+import { get as idbGet, set as idbSet, delMany, keys as idbKeys } from "idb-keyval";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { PAGE_COLUMNS, type Block, type Page } from "../lib/types";
@@ -569,4 +569,26 @@ export function ancestorsOf(pages: Record<string, Page>, id: string): Page[] {
 export function hasPending() {
   const s = usePages.getState();
   return Object.keys(s.dirty).length > 0 || Object.keys(s.deletions).length > 0;
+}
+
+/**
+ * Signed out without asking (account deleted on another device, password changed), or starting
+ * signed out: remove this device's copies of accounts that aren't signed in. A copy holding edits
+ * that never reached the server stays, so they're saved when that account signs in again.
+ */
+export async function dropSignedOutCopies() {
+  const s = usePages.getState();
+  if (s.userId && !hasPending()) await s.reset();
+  const keep = usePages.getState().userId;
+  for (const key of await idbKeys()) {
+    const uid = /^notes:([^:]+):pages$/.exec(String(key))?.[1];
+    if (!uid || uid === keep) continue;
+    const k = keys(uid);
+    const [dirty, deletions] = await Promise.all([
+      idbGet<Record<string, true>>(k.dirty),
+      idbGet<Record<string, true>>(k.deletions),
+    ]);
+    if (Object.keys(dirty ?? {}).length || Object.keys(deletions ?? {}).length) continue;
+    await delMany([k.pages, k.dirty, k.deletions, k.lastSync]);
+  }
 }
