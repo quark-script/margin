@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Download, Monitor, Moon, Sun, Upload } from "lucide-react";
 import { TopBar } from "../components/TopBar";
@@ -8,6 +8,7 @@ import { useUi } from "../store/ui";
 import { useTheme, type ThemePref } from "../lib/theme";
 import { supabase } from "../lib/supabase";
 import { download } from "../lib/download";
+import { deleteFiles, formatBytes, STORAGE_LIMIT_BYTES, storageUsed, unusedFiles } from "../lib/media";
 
 /** Everything as Markdown in a .zip, images included. Also offered before deleting the account. */
 export async function exportEverything() {
@@ -28,6 +29,7 @@ export function Settings() {
           <h1 className="page-title text-ink">Settings</h1>
           <Account />
           <Appearance />
+          <Storage />
           <Data />
           <Danger />
         </div>
@@ -182,6 +184,83 @@ function Appearance() {
           ))}
         </div>
       </Row>
+    </Section>
+  );
+}
+
+function Storage() {
+  const notify = useUi((s) => s.notify);
+  const [used, setUsed] = useState<number | null>(null);
+  const [unused, setUnused] = useState<{ name: string; size: number }[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    if (!navigator.onLine) return setError("Storage details need a connection.");
+    setError(null);
+    Promise.all([storageUsed(), unusedFiles()]).then(
+      ([u, f]) => {
+        setUsed(u);
+        setUnused(f);
+      },
+      () => setError("Couldn't load your storage details."),
+    );
+  }, []);
+  useEffect(load, [load]);
+
+  const unusedBytes = unused?.reduce((n, f) => n + f.size, 0) ?? 0;
+  const free = async () => {
+    if (!unused?.length || busy) return;
+    const what = `${unused.length} unused file${unused.length === 1 ? "" : "s"} (${formatBytes(unusedBytes)})`;
+    if (!window.confirm(`Delete ${what}? A version in version history that shows one will show it as missing. This can't be undone.`)) return;
+    setBusy(true);
+    try {
+      await deleteFiles(unused.map((f) => f.name));
+      notify(`Deleted ${what}.`);
+      load();
+    } catch {
+      notify("Couldn't delete the files. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const share = used == null ? 0 : Math.min(100, (used / STORAGE_LIMIT_BYTES) * 100);
+  return (
+    <Section title="Storage">
+      <Row
+        label="Images and files"
+        hint={error ?? (used == null ? "Loading…" : `${formatBytes(used)} of 100 MB used. Each file can be up to 10 MB.`)}
+      >
+        {used != null && (
+          <div
+            role="progressbar"
+            aria-label="Storage used"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(share)}
+            className="h-1.5 w-40 overflow-hidden rounded-full bg-press"
+          >
+            <div className={`h-full rounded-full ${share >= 90 ? "bg-danger" : "bg-accent"}`} style={{ width: `${Math.max(share, 2)}%` }} />
+          </div>
+        )}
+      </Row>
+      {unused && (
+        <Row
+          label="Unused files"
+          hint={
+            unused.length
+              ? `${unused.length} file${unused.length === 1 ? "" : "s"} (${formatBytes(unusedBytes)}) no longer in any page, or in the Trash.`
+              : "Every file you've added is in a page."
+          }
+        >
+          {unused.length > 0 && (
+            <button className={button} disabled={busy} onClick={() => void free()}>
+              Delete unused files
+            </button>
+          )}
+        </Row>
+      )}
     </Section>
   );
 }

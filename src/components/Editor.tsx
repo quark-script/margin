@@ -12,9 +12,10 @@ import { en } from "@blocknote/core/locales";
 import { FilePlus, FileText, Link2 } from "lucide-react";
 import "@blocknote/mantine/style.css";
 import { MEDIA_BUCKET, MEDIA_PREFIX, supabase } from "../lib/supabase";
-import { resolveFileUrl } from "../lib/media";
+import { FILE_TYPES, formatBytes, MAX_FILE_BYTES, resolveFileUrl, STORAGE_LIMIT_BYTES, storageUsed } from "../lib/media";
 import type { Block } from "../lib/types";
 import { isTrashed, usePages } from "../store/pages";
+import { useUi } from "../store/ui";
 import { displayTitle } from "../lib/text";
 import { pageLinkSpec } from "./PageLink";
 
@@ -123,18 +124,42 @@ const dictionary = {
 };
 
 
-async function uploadFile(file: File) {
-  if (!navigator.onLine) throw new Error("You're offline. Images can be added once you're back online.");
+/** The editor only says "Upload failed", so say why where it can be read. */
+function refuse(message: string): never {
+  useUi.getState().notify(message);
+  throw new Error(message);
+}
+
+// Blocks whose upload failed. BlockNote leaves such a block saying "Loading..." for good, so
+// the editor swaps it for a fresh empty one that can be clicked to try again.
+const failedUploads = new Set<string>();
+
+async function uploadFile(file: File, blockId?: string) {
+  try {
+    return await upload(file);
+  } catch (err) {
+    if (blockId) failedUploads.add(blockId);
+    throw err;
+  }
+}
+
+async function upload(file: File) {
+  if (!navigator.onLine) refuse("You're offline. Images can be added once you're back online.");
+  if (file.size > MAX_FILE_BYTES) refuse(`This file is ${formatBytes(file.size)}. Files can be up to 10 MB.`);
+  if (file.type && !FILE_TYPES.includes(file.type)) refuse("Margin can store images (PNG, JPEG, WebP, GIF, SVG) and PDFs.");
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user.id;
-  if (!uid) throw new Error("Not signed in");
+  if (!uid) refuse("Sign in again to add files.");
   const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
   const path = `${uid}/${crypto.randomUUID()}.${ext}`;
   const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, file, {
     contentType: file.type || undefined,
     cacheControl: "31536000",
   });
-  if (error) throw error;
+  if (error) {
+    const full = await storageUsed().then((used) => used >= STORAGE_LIMIT_BYTES, () => false);
+    refuse(full ? "Your storage is full (100 MB). Settings > Storage can free up space." : "Couldn't upload this file. Try again.");
+  }
   return MEDIA_PREFIX + path;
 }
 
@@ -188,6 +213,19 @@ export function Editor({
     onReady?.(editor);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
+
+  useEffect(
+    () =>
+      editor.onUploadEnd((blockId) => {
+        if (!blockId || !failedUploads.delete(blockId)) return;
+        const block = editor.getBlock(blockId);
+        if (!block || (block.props as { url?: string }).url) return;
+        // A new block next to it, then the old one goes: replacing it in place would keep its view.
+        editor.insertBlocks([{ type: block.type, props: block.props } as unknown as Parameters<Ed["insertBlocks"]>[0][number]], block, "after");
+        editor.removeBlocks([block]);
+      }),
+    [editor],
+  );
 
   const focusRef = useRef(onFocusChange);
   focusRef.current = onFocusChange;

@@ -12,7 +12,7 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Share like a doc: invite people by email (with an invitation email) and/or open a page to anyone with the link, view or edit. One link per page; pages shared with you appear under "Shared with me"
 - One editor at a time on shared pages, with the editor's name shown to everyone else; editing always needs an account
 - Version history for every page: see what changed in each version (highlighted), preview and restore. Saves that change nothing visible don't count
-- Block editor with images, tables, code and to-dos
+- Block editor with images, tables, code and to-dos. Images and PDFs up to 10 MB each, 100 MB per account; Settings shows what's used and deletes files no page uses
 - Search across titles and content (`Ctrl/⌘ K`)
 - Import Markdown (an Obsidian vault as a .zip, or .md files) and export everything as Markdown
 - Copy a page as Markdown, or save it as a PDF
