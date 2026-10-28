@@ -9,7 +9,7 @@ type AuthState = {
   ready: boolean;
   /** Signed in through a password-reset link; must set a new password before using the app. */
   recovering: boolean;
-  /** True when the password screen was opened from the account menu, so it can be cancelled. */
+  /** True when the password screen was opened from Settings, so it can be cancelled. */
   changingPassword: boolean;
   /** An email link (confirm, reset, ...) was expired or already used. */
   linkFailed: boolean;

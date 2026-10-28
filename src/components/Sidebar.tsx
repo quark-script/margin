@@ -3,35 +3,24 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
   ChevronsLeft,
-  Download,
   FileText,
-  KeyRound,
-  UserRound,
   LogOut,
-  Monitor,
-  Moon,
   Plus,
   Search,
+  Settings as SettingsIcon,
   SquarePen,
-  Sun,
   Trash2,
-  Upload,
-  UserRoundX,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { useAuth } from "../store/auth";
 import { useShares } from "../store/shares";
-import { useTheme, type ThemePref } from "../lib/theme";
 import { displayTitle } from "../lib/text";
 import { PageTree } from "./PageTree";
 import { IconButton, MenuDivider, MenuItem, Popover } from "./Menu";
 import { SyncStatus } from "./SyncStatus";
 import { openToday } from "../lib/daily";
-import { download } from "../lib/download";
-import { NameDialog } from "./NameDialog";
-import { DeleteAccountDialog } from "./DeleteAccountDialog";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 export const modKey = isMac ? "⌘" : "Ctrl";
@@ -224,62 +213,13 @@ function AccountMenu() {
   const close = useCallback(() => setOpen(false), []);
   const email = useAuth((s) => s.session?.user.email ?? "");
   const signOut = useAuth((s) => s.signOut);
-  const changePassword = useAuth((s) => s.changePassword);
-  const { pref, setPref } = useTheme();
   const navigate = useNavigate();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const notify = useUi((s) => s.notify);
-
-  const run = async (label: string, task: () => Promise<string>) => {
-    close();
-    setBusy(true);
-    notify(label);
-    try {
-      notify(await task());
-    } catch (err) {
-      notify(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const exportEverything = async () => {
-    const { exportPages } = await import("../lib/markdown");
-    const res = await exportPages();
-    download(res.blob, res.filename);
-    const missing = res.missingImages ? ` ${res.missingImages} image(s) couldn't be downloaded.` : "";
-    return `Exported ${res.pages} page${res.pages === 1 ? "" : "s"}.${missing}`;
-  };
-  const exportAll = () => run("Preparing your export…", exportEverything);
-
-  const importPicked = (files: File[]) =>
-    run("Importing…", async () => {
-      const { importFiles } = await import("../lib/markdown");
-      const res = await importFiles(files);
-      if (res.rootId) {
-        useUi.getState().setSidebarOpen(false);
-        navigate(`/p/${res.rootId}`);
-      }
-      const missing = res.missingImages.length ? ` Missing images: ${res.missingImages.slice(0, 3).join(", ")}${res.missingImages.length > 3 ? "…" : ""}.` : "";
-      return `Imported ${res.pages} page${res.pages === 1 ? "" : "s"}.${missing}`;
-    });
   const initial = (email[0] ?? "N").toUpperCase();
   // Google accounts come with a name and photo.
   const meta = useAuth((s) => s.session?.user.user_metadata) as { full_name?: string; name?: string; avatar_url?: string } | undefined;
   const name = meta?.full_name?.trim() || meta?.name?.trim() || "";
   const [photoFailed, setPhotoFailed] = useState(false);
   const photo = !photoFailed ? meta?.avatar_url : undefined;
-  // Signed up with Google only: there's no password yet, so offer to set one.
-  const hasPassword = useAuth((s) => s.session?.user.identities?.some((i) => i.provider === "email") ?? true);
-  const [naming, setNaming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  const themeItem = (value: ThemePref, label: string, icon: React.ReactNode) => (
-    <MenuItem icon={icon} onClick={() => setPref(value)} hint={pref === value ? "✓" : undefined}>
-      {label}
-    </MenuItem>
-  );
 
   return (
     <>
@@ -309,34 +249,15 @@ function AccountMenu() {
           <div className="truncate text-[12px] text-muted">{email}</div>
         </div>
         <MenuDivider />
-        {themeItem("system", "System theme", <Monitor size={15} />)}
-        {themeItem("light", "Light", <Sun size={15} />)}
-        {themeItem("dark", "Dark", <Moon size={15} />)}
-        <MenuDivider />
-        <MenuItem icon={<Upload size={15} />} onClick={() => !busy && fileInput.current?.click()}>
-          Import Markdown
-        </MenuItem>
-        <MenuItem icon={<Download size={15} />} onClick={() => !busy && void exportAll()}>
-          Export all pages
-        </MenuItem>
-        <MenuDivider />
         <MenuItem
-          icon={<UserRound size={15} />}
+          icon={<SettingsIcon size={15} />}
           onClick={() => {
             close();
-            setNaming(true);
+            useUi.getState().setSidebarOpen(false);
+            navigate("/settings");
           }}
         >
-          {name ? "Change your name" : "Add your name"}
-        </MenuItem>
-        <MenuItem
-          icon={<KeyRound size={15} />}
-          onClick={() => {
-            close();
-            changePassword();
-          }}
-        >
-          {hasPassword ? "Change password" : "Set a password"}
+          Settings
         </MenuItem>
         <MenuItem
           icon={<LogOut size={15} />}
@@ -347,32 +268,7 @@ function AccountMenu() {
         >
           Sign out
         </MenuItem>
-        <MenuDivider />
-        <MenuItem
-          danger
-          icon={<UserRoundX size={15} />}
-          onClick={() => {
-            close();
-            setDeleting(true);
-          }}
-        >
-          Delete account
-        </MenuItem>
       </Popover>
-      {naming && <NameDialog onClose={() => setNaming(false)} />}
-      {deleting && <DeleteAccountDialog onClose={() => setDeleting(false)} onExport={exportEverything} />}
-      <input
-        ref={fileInput}
-        type="file"
-        multiple
-        accept=".md,.markdown,.txt,.zip,image/*"
-        className="hidden"
-        onChange={(e) => {
-          const files = [...(e.target.files ?? [])];
-          e.target.value = "";
-          if (files.length) void importPicked(files);
-        }}
-      />
     </>
   );
 }

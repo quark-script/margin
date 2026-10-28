@@ -90,9 +90,9 @@ export function Privacy() {
           <ul className="list-disc space-y-1.5 pl-5">
             <li>Your data is kept while you have an account.</li>
             <li>Version history keeps every version for 30 days, then one version per day.</li>
-            <li>You can delete pages at any time (Trash, then Delete forever) and export everything as Markdown from the account menu.</li>
+            <li>You can delete pages at any time (Trash, then Delete forever) and export everything as Markdown from Settings.</li>
             <li>
-              You can delete your account from the account menu (Delete account). Your pages, images, version history and
+              You can delete your account in Settings (Delete account). Your pages, images, version history and
               sharing are deleted right away, and this can't be undone. Edits you made to pages other people own stay on their
               pages, without your name.
             </li>

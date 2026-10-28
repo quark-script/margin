@@ -9,6 +9,7 @@ import { PageView } from "./pages/PageView";
 import { PublicPage, TokenRedirect } from "./pages/SharedView";
 import { Landing } from "./pages/Landing";
 import { Privacy } from "./pages/Privacy";
+import { Settings } from "./pages/Settings";
 import { authLinkErrorCode } from "./lib/supabase";
 import { takeNext } from "./lib/next";
 import { reloadIfUpdateReady } from "./lib/update";
@@ -95,6 +96,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route index element={<HomeRoute />} />
             <Route path="p/:pageId" element={<PageView />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="shared/:rootId/:pageId?" element={<SharedRedirect />} />
           </Route>
           <Route path="privacy" element={<Privacy />} />

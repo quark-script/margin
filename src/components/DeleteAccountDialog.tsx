@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../store/auth";
 import { usePages } from "../store/pages";
 
-/** Account menu > Delete account. Typing your email address confirms it. */
+/** Settings > Delete account. Typing your email address confirms it. */
 export function DeleteAccountDialog({ onClose, onExport }: { onClose: () => void; onExport: () => Promise<string> }) {
   const email = useAuth((s) => s.session?.user.email ?? "");
   const finishDeletion = useAuth((s) => s.finishDeletion);
