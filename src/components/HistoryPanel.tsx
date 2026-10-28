@@ -1,12 +1,14 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import { usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { useTheme } from "../lib/theme";
 import { displayTitle } from "../lib/text";
 import { fetchHistory, fetchVersion, restoreInvitedVersion, restoreVersion, type Version, type VersionRow } from "../lib/history";
+import { compareVersions, type Comparison } from "../lib/versionDiff";
 import { EditorBoundary } from "./EditorBoundary";
 import { IconButton } from "./Menu";
+import { VersionDiff } from "./VersionDiff";
 
 const Editor = lazy(() => import("./Editor").then((m) => ({ default: m.Editor })));
 
@@ -18,6 +20,36 @@ const dayLabel = (iso: string) => {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: days > 300 ? "numeric" : undefined });
 };
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+const sinceLabel = (iso: string) => {
+  const day = dayLabel(iso);
+  return `${day === "Today" ? "" : `${day === "Yesterday" ? "yesterday" : day}, `}${timeLabel(iso)}`;
+};
+
+const HIGHLIGHT_KEY = "margin:history-highlight";
+const savedHighlight = () => {
+  try {
+    return localStorage.getItem(HIGHLIGHT_KEY) !== "off";
+  } catch {
+    return true;
+  }
+};
+
+function summary(c: Comparison) {
+  if (!c.lines) return "too many changes to highlight";
+  const parts = [
+    c.added && `${c.added} added`,
+    c.removed && `${c.removed} removed`,
+    c.changed && `${c.changed} edited`,
+    c.title && "title changed",
+    c.icon && "icon changed",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "no visible changes";
+}
+
+const pageTitle = (id: string) => {
+  const page = usePages.getState().pages[id];
+  return page ? displayTitle(page.title) : "Page";
+};
 
 /** Versions of a page: pick one to preview, restore it. The newest is the page as it is now. */
 export function HistoryPanel() {
@@ -31,6 +63,10 @@ export function HistoryPanel() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [preview, setPreview] = useState<Version | null>(null);
+  // The version before the selected one, to show what changed. null for the oldest.
+  const [before, setBefore] = useState<Version | null>(null);
+  const [highlight, setHighlight] = useState(savedHighlight);
+  const versions = useRef(new Map<number, Promise<Version>>());
   const [busy, setBusy] = useState(false);
   const [showList, setShowList] = useState(true); // phones show the list or the preview
 
@@ -38,6 +74,7 @@ export function HistoryPanel() {
     if (!pageId) return;
     setRows(null);
     setError(null);
+    versions.current = new Map(); // the newest version changes while its session lasts
     fetchHistory(pageId).then(
       (r) => {
         setRows(r);
@@ -48,17 +85,42 @@ export function HistoryPanel() {
   }, [pageId]);
 
   useEffect(() => {
-    if (selected == null) return;
+    if (selected == null || !rows) return;
     setPreview(null);
+    setBefore(null);
+    const load = (id: number) => {
+      let v = versions.current.get(id);
+      if (!v) {
+        v = fetchVersion(id);
+        versions.current.set(id, v);
+        v.catch(() => versions.current.delete(id));
+      }
+      return v;
+    };
+    const prevId = rows[rows.findIndex((r) => r.id === selected) + 1]?.id;
     let alive = true;
-    fetchVersion(selected).then(
-      (v) => alive && setPreview(v),
+    Promise.all([load(selected), prevId == null ? null : load(prevId).catch(() => null)]).then(
+      ([v, b]) => {
+        if (!alive) return;
+        setPreview(v);
+        setBefore(b);
+      },
       () => alive && setError("Couldn't load this version."),
     );
     return () => {
       alive = false;
     };
-  }, [selected]);
+  }, [selected, rows]);
+
+  const comparison = useMemo(() => (preview && before ? compareVersions(before, preview, pageTitle) : null), [preview, before]);
+  const toggleHighlight = () => {
+    setHighlight(!highlight);
+    try {
+      localStorage.setItem(HIGHLIGHT_KEY, highlight ? "off" : "on");
+    } catch {
+      // Private windows can refuse storage; the choice then lasts until the panel closes.
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
@@ -69,6 +131,8 @@ export function HistoryPanel() {
   if (!pageId || (!ownPage && !target?.invited)) return null;
 
   const isLatest = rows?.[0]?.id === selected;
+  const selectedIndex = rows?.findIndex((r) => r.id === selected) ?? -1;
+  const previousRow = rows?.[selectedIndex + 1];
   const restore = async () => {
     if (selected == null) return;
     setBusy(true);
@@ -157,25 +221,53 @@ export function HistoryPanel() {
 
           <section className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${showList ? "max-sm:hidden" : ""}`} aria-label="Preview">
             {preview ? (
-              <article className="mx-auto w-full max-w-[720px] px-5 pt-8 pb-16 sm:px-12">
-                {preview.icon && <div className="mb-2 text-[44px] leading-none">{preview.icon}</div>}
-                <h1 className="page-title text-ink">{displayTitle(preview.title)}</h1>
-                <div className="mt-2 sm:-mx-[54px]">
-                  <EditorBoundary key={selected ?? 0} fallbackText="">
-                    <Suspense fallback={null}>
-                      <Editor
-                        key={selected ?? 0}
-                        pageId={`version-${selected}`}
-                        rev={0}
-                        initialContent={preview.content ?? []}
-                        isDark={isDark}
-                        editable={false}
-                        onChange={() => {}}
-                      />
-                    </Suspense>
-                  </EditorBoundary>
+              <>
+                <div className="sticky top-0 z-10 flex min-h-10 items-center gap-3 border-b border-line bg-pop px-4 py-1.5 text-[13px] text-muted sm:px-6">
+                  <p className="min-w-0 flex-1" aria-live="polite">
+                    {previousRow
+                      ? comparison
+                        ? `Since ${sinceLabel(previousRow.saved_at)}: ${summary(comparison)}`
+                        : `Couldn't load the version before this one.`
+                      : "The oldest version in the history."}
+                  </p>
+                  {comparison?.lines && (
+                    <button
+                      role="switch"
+                      aria-checked={highlight}
+                      onClick={toggleHighlight}
+                      className="flex shrink-0 items-center gap-2 rounded-md px-1.5 py-1 text-ink hover:bg-hover"
+                    >
+                      <span className={`switch ${highlight ? "on" : ""}`} aria-hidden="true" />
+                      Highlight changes
+                    </button>
+                  )}
                 </div>
-              </article>
+                <article className="mx-auto w-full max-w-[720px] px-5 pt-8 pb-16 sm:px-12">
+                  {highlight && comparison?.lines ? (
+                    <VersionDiff version={preview} comparison={comparison} lines={comparison.lines} />
+                  ) : (
+                    <>
+                      {preview.icon && <div className="mb-2 text-[44px] leading-none">{preview.icon}</div>}
+                      <h1 className="page-title text-ink">{displayTitle(preview.title)}</h1>
+                      <div className="mt-2 sm:-mx-[54px]">
+                        <EditorBoundary key={selected ?? 0} fallbackText="">
+                          <Suspense fallback={null}>
+                            <Editor
+                              key={selected ?? 0}
+                              pageId={`version-${selected}`}
+                              rev={0}
+                              initialContent={preview.content ?? []}
+                              isDark={isDark}
+                              editable={false}
+                              onChange={() => {}}
+                            />
+                          </Suspense>
+                        </EditorBoundary>
+                      </div>
+                    </>
+                  )}
+                </article>
+              </>
             ) : (
               selected != null && !error && <p className="px-6 py-6 text-[13px] text-muted">Loading…</p>
             )}

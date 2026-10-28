@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.118.0",
     "@vercel/analytics": "^2.0.1",
     "cmdk": "^1.1.1",
+    "diff": "^9.0.0",
     "fflate": "^0.8.2",
     "idb-keyval": "^6.3.0",
     "lucide-react": "^1.61.0",
