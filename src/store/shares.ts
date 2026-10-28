@@ -4,8 +4,11 @@ import { fetchSharedWithMe, leaveShared, sendInviteEmail, type IncomingShare, ty
 import type { Page } from "../lib/types";
 
 export type Share = { page_id: string; token: string; can_edit: boolean };
-/** Someone the owner invited to a page by email. */
-export type Member = { page_id: string; email: string; can_edit: boolean };
+/** Someone invited to a page by email. Full access: edit, and share with others. */
+export type Member = { page_id: string; email: string; can_edit: boolean; can_share: boolean };
+export type Role = "full" | "edit" | "view";
+export const roleOf = (m: { can_edit: boolean; can_share?: boolean }): Role => (m.can_share ? "full" : m.can_edit ? "edit" : "view");
+export const roleFlags = (role: Role) => ({ can_edit: role !== "view", can_share: role === "full" });
 
 type State = {
   shares: Record<string, Share>;
@@ -19,9 +22,9 @@ type State = {
   setCanEdit: (pageId: string, canEdit: boolean) => Promise<void>;
   disable: (pageId: string) => Promise<void>;
   /** Adds the person and emails them; resolves with whether the email went out. */
-  invite: (pageId: string, email: string, canEdit: boolean) => Promise<InviteEmail>;
+  invite: (pageId: string, email: string, role: Role) => Promise<InviteEmail>;
   resendInvite: (pageId: string, email: string) => Promise<InviteEmail>;
-  setMemberCanEdit: (pageId: string, email: string, canEdit: boolean) => Promise<void>;
+  setMemberRole: (pageId: string, email: string, role: Role) => Promise<void>;
   removeMember: (pageId: string, email: string) => Promise<void>;
   leave: (rootId: string) => Promise<void>;
   reset: () => void;
@@ -42,7 +45,7 @@ export const useShares = create<State>((set, get) => ({
   async load() {
     const [links, invites] = await Promise.all([
       supabase.from("shares").select("page_id,token,can_edit"),
-      supabase.from("page_members").select("page_id,email,can_edit").order("created_at"),
+      supabase.from("page_members").select("page_id,email,can_edit,can_share").order("created_at"),
     ]);
     if (!links.error) set({ shares: Object.fromEntries((links.data as Share[]).map((s) => [s.page_id, s])) });
     if (!invites.error) set({ members: byPage(invites.data as Member[]) });
@@ -83,22 +86,24 @@ export const useShares = create<State>((set, get) => ({
     set({ shares });
   },
 
-  async invite(pageId, email, canEdit) {
-    const row = { page_id: pageId, email: email.trim().toLowerCase(), can_edit: canEdit };
+  async invite(pageId, email, role) {
+    const row = { page_id: pageId, email: email.trim().toLowerCase(), ...roleFlags(role) };
     const { error } = await supabase.from("page_members").insert(row);
     if (error) throw error;
+    // A load that finished meanwhile may already have them.
     const members = get().members;
-    set({ members: { ...members, [pageId]: [...(members[pageId] ?? []), row] } });
+    set({ members: { ...members, [pageId]: [...(members[pageId] ?? []).filter((m) => m.email !== row.email), row] } });
     return sendInviteEmail(pageId, row.email);
   },
 
   resendInvite: (pageId, email) => sendInviteEmail(pageId, email),
 
-  async setMemberCanEdit(pageId, email, canEdit) {
-    const { error } = await supabase.from("page_members").update({ can_edit: canEdit }).eq("page_id", pageId).eq("email", email);
+  async setMemberRole(pageId, email, role) {
+    const flags = roleFlags(role);
+    const { error } = await supabase.from("page_members").update(flags).eq("page_id", pageId).eq("email", email);
     if (error) throw error;
     const members = get().members;
-    set({ members: { ...members, [pageId]: (members[pageId] ?? []).map((m) => (m.email === email ? { ...m, can_edit: canEdit } : m)) } });
+    set({ members: { ...members, [pageId]: (members[pageId] ?? []).map((m) => (m.email === email ? { ...m, ...flags } : m)) } });
   },
 
   async removeMember(pageId, email) {

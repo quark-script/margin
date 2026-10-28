@@ -109,6 +109,26 @@ export const leaveShared = (root: string) => rpc<null>("leave_shared", { p_root:
 
 export type InviteEmail = { sent: boolean; reason?: "not_configured" | "limit" | "recent" | "send_failed" | "error" };
 
+type Role = "full" | "edit" | "view";
+/** A page's Share panel as someone invited to it sees it (notes.page_sharing). */
+export type PageSharing = {
+  can_manage: boolean;
+  role: Role | "owner";
+  owner: { name: string | null; email: string | null };
+  /** Email addresses only for those who manage sharing, and for yourself. */
+  people: { email: string | null; name: string | null; role: Role; you: boolean; via: { id: string; title: string } | null }[];
+  link: { can_edit: boolean; via: { id: string; title: string } | null } | null;
+};
+export const fetchPageSharing = (pageId: string) => rpc<PageSharing | null>("page_sharing", { p_page_id: pageId });
+/** Sharing changes by someone with full access (the owner changes its own tables). */
+export const shareInvite = (pageId: string, email: string, role: Role) =>
+  rpc<null>("share_invite", { p_page_id: pageId, p_email: email, p_role: role });
+export const shareSetRole = (pageId: string, email: string, role: Role) =>
+  rpc<null>("share_set_role", { p_page_id: pageId, p_email: email, p_role: role });
+export const shareRemove = (pageId: string, email: string) => rpc<null>("share_remove", { p_page_id: pageId, p_email: email });
+export const shareSetLink = (pageId: string, mode: "off" | Exclude<Role, "full">) =>
+  rpc<null>("share_set_link", { p_page_id: pageId, p_mode: mode });
+
 /** Email the invitation. The invite itself already exists; this only sends the message. */
 export async function sendInviteEmail(pageId: string, email: string): Promise<InviteEmail> {
   try {

@@ -24,6 +24,7 @@ import { PageLinkContext } from "../lib/pageLinkContext";
 import { EditorBoundary } from "../components/EditorBoundary";
 import { IconButton, MenuItem, Popover } from "../components/Menu";
 import { TopBar } from "../components/TopBar";
+import { ShareMenu } from "../components/ShareMenu";
 import { Login } from "./Login";
 
 const Editor = lazy(() => import("../components/Editor").then((m) => ({ default: m.Editor })));
@@ -271,6 +272,7 @@ function SharedView({ pageId, layout }: { pageId: string; layout: "app" | "publi
             right={
               <>
                 {statusEl}
+                {tree.via === "invite" && <ShareMenu pageId={current.id} invited />}
                 {tree.via === "invite" && (
                   <InvitedActions
                     rootId={tree.root_id}

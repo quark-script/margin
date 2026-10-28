@@ -2,24 +2,42 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom";
 import { Check, ChevronDown, Globe, Link2, Lock } from "lucide-react";
 import { ancestorsOf, usePages } from "../store/pages";
-import { shareCovering, useShares, type Member } from "../store/shares";
+import { roleOf, shareCovering, useShares, type Member, type Role } from "../store/shares";
 import { useAuth } from "../store/auth";
 import { useUi } from "../store/ui";
-import { pageUrl, type InviteEmail } from "../lib/share";
+import {
+  fetchPageSharing,
+  pageUrl,
+  sendInviteEmail,
+  shareInvite,
+  shareRemove,
+  shareSetLink,
+  shareSetRole,
+  type InviteEmail,
+  type PageSharing,
+} from "../lib/share";
 import { displayTitle } from "../lib/text";
 import { MenuDivider, MenuItem, Popover } from "./Menu";
 
 const NO_MEMBERS: Member[] = [];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+type LinkMode = "off" | "view" | "edit";
 
-export function ShareMenu({ pageId }: { pageId: string }) {
+const ROLES: Record<Role, { title: string; detail: string }> = {
+  full: { title: "Full access", detail: "Edit, and share with others" },
+  edit: { title: "Can edit", detail: "Edit text, one person at a time" },
+  view: { title: "Can view", detail: "Read only" },
+};
+
+/** The Share button. The owner manages sharing from their own data; people invited ask the server. */
+export function ShareMenu({ pageId, invited }: { pageId: string; invited?: boolean }) {
   const btn = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
-    if (open) void useShares.getState().load();
-  }, [open]);
+    if (open && !invited) void useShares.getState().load();
+  }, [open, invited]);
 
   return (
     <>
@@ -27,14 +45,14 @@ export function ShareMenu({ pageId }: { pageId: string }) {
         Share
       </button>
       <Popover anchor={btn.current} open={open} onClose={close} align="end" width={400}>
-        <SharePanel pageId={pageId} />
+        {invited ? <InvitedPanel pageId={pageId} /> : <OwnerPanel pageId={pageId} />}
       </Popover>
     </>
   );
 }
 
 /** What the owner sees: who has access, general access, one link. */
-function SharePanel({ pageId }: { pageId: string }) {
+function OwnerPanel({ pageId }: { pageId: string }) {
   const pages = usePages((s) => s.pages);
   const shares = useShares((s) => s.shares);
   const allMembers = useShares((s) => s.members);
@@ -44,7 +62,6 @@ function SharePanel({ pageId }: { pageId: string }) {
     const m = s.session?.user.user_metadata as { full_name?: string; name?: string } | undefined;
     return m?.full_name?.trim() || m?.name?.trim() || "";
   });
-  const [copied, setCopied] = useState(false);
 
   // People invited to a page above this one can open it too.
   const directEmails = new Set(direct.map((m) => m.email));
@@ -55,7 +72,174 @@ function SharePanel({ pageId }: { pageId: string }) {
 
   const parentId = pages[pageId]?.parent_id ?? null;
   const linkAbove = !shares[pageId] && parentId ? shareCovering(pages, shares, parentId) : null;
+  const share = shares[pageId];
 
+  const setLink = async (mode: LinkMode) => {
+    const st = useShares.getState();
+    if (mode === "off") return st.disable(pageId);
+    if (!st.shares[pageId]) await st.enable(pageId);
+    if (Boolean(useShares.getState().shares[pageId]?.can_edit) !== (mode === "edit")) await st.setCanEdit(pageId, mode === "edit");
+  };
+
+  return (
+    <Panel pageId={pageId}>
+      <InviteForm
+        taken={(email) => email === myEmail || directEmails.has(email)}
+        onInvite={(email, role) => useShares.getState().invite(pageId, email, role)}
+      />
+
+      <ul aria-label="People with access" className="mt-3">
+        <Person
+          initial={(myName || myEmail)[0]}
+          name={myName ? `${myName} (you)` : "You"}
+          detail={myEmail}
+          owner
+          right={<RoleLabel text="Owner" />}
+        />
+        {direct.map((m) => (
+          <Person key={m.email} initial={m.email[0]} name={m.email} right={<OwnerMemberRole pageId={pageId} member={m} />} />
+        ))}
+        {inherited.map((m) => (
+          <Person
+            key={m.email}
+            initial={m.email[0]}
+            name={m.email}
+            detail={<Via id={m.via.id} title={m.via.title} />}
+            right={<RoleLabel text={ROLES[roleOf(m)].title} />}
+          />
+        ))}
+      </ul>
+
+      <p className="mt-4 mb-1 text-[12px] font-medium text-muted">General access</p>
+      {linkAbove ? (
+        <LinkAbove canEdit={linkAbove.share.can_edit} via={linkAbove.via} />
+      ) : (
+        <GeneralAccess value={share ? { can_edit: share.can_edit } : null} onSet={setLink} />
+      )}
+    </Panel>
+  );
+}
+
+/**
+ * What people invited see. With full access, the same controls as the owner; otherwise who has
+ * access (other people by name only) and how the page is shared, without changing anything.
+ */
+function InvitedPanel({ pageId }: { pageId: string }) {
+  const [data, setData] = useState<PageSharing | null | undefined>(undefined);
+  const [failed, setFailed] = useState(false);
+  const notify = useUi.getState().notify;
+
+  const reload = useCallback(async () => {
+    try {
+      setData(await fetchPageSharing(pageId));
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    }
+  }, [pageId]);
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  if (data === undefined || data === null) {
+    const text = data === null ? "You don't have access to this page's sharing." : failed ? "Couldn't load who has access. Check your connection." : "Loading…";
+    return <p className="p-4 text-[13px] text-muted">{text}</p>;
+  }
+
+  const manage = data.can_manage;
+  const fail = () => notify("Couldn't update access. Check your connection.");
+  const change = (task: () => Promise<unknown>) => task().then(reload, fail);
+  const linkAbove = data.link?.via ?? null;
+
+  return (
+    <Panel pageId={pageId} note={manage ? null : "Only the owner and people with full access can change sharing."}>
+      {manage && (
+        <InviteForm
+          taken={(email) => email === data.owner.email?.toLowerCase() || data.people.some((p) => p.email === email && !p.via)}
+          onInvite={async (email, role) => {
+            await shareInvite(pageId, email, role);
+            void reload();
+            return sendInviteEmail(pageId, email);
+          }}
+        />
+      )}
+
+      <ul aria-label="People with access" className={manage ? "mt-3" : ""}>
+        <Person
+          initial={(data.owner.name || data.owner.email || "?")[0]}
+          name={data.owner.name ?? "Owner"}
+          detail={data.owner.email}
+          owner
+          right={<RoleLabel text="Owner" />}
+        />
+        {data.people.map((p, i) => {
+          const name = p.you ? `${p.name || p.email} (you)` : p.name || (manage && p.email) || "Invited, hasn't joined yet";
+          const email = p.email && (p.you || (manage && p.name)) ? p.email : null;
+          const detail =
+            email || p.via ? (
+              <>
+                {email}
+                {email && p.via && " · "}
+                {p.via && <Via id={p.via.id} title={p.via.title} />}
+              </>
+            ) : undefined;
+          const editable = manage && !p.you && !p.via && p.email;
+          return (
+            <Person
+              key={p.email ?? `${p.name}-${i}`}
+              initial={(p.name || p.email || "?")[0]}
+              name={name}
+              detail={detail}
+              right={
+                editable ? (
+                  <RoleMenu
+                    label={`Access for ${p.email}`}
+                    role={p.role}
+                    onChange={(role) => void change(() => shareSetRole(pageId, p.email!, role))}
+                    more={(close) => (
+                      <MemberActions
+                        email={p.email!}
+                        close={close}
+                        onResend={() => sendInviteEmail(pageId, p.email!)}
+                        onRemove={() => void change(() => shareRemove(pageId, p.email!))}
+                      />
+                    )}
+                  />
+                ) : (
+                  <RoleLabel text={ROLES[p.role].title} />
+                )
+              }
+            />
+          );
+        })}
+      </ul>
+
+      <p className="mt-4 mb-1 text-[12px] font-medium text-muted">General access</p>
+      {linkAbove ? (
+        <LinkAbove canEdit={Boolean(data.link?.can_edit)} via={linkAbove} />
+      ) : manage ? (
+        <GeneralAccess
+          value={data.link ? { can_edit: data.link.can_edit } : null}
+          onSet={async (mode) => {
+            await shareSetLink(pageId, mode);
+            await reload();
+          }}
+        />
+      ) : (
+        <AccessRow
+          isPublic={Boolean(data.link)}
+          title={<span className="text-ink">{data.link ? "Anyone with the link" : "Only people invited"}</span>}
+          detail={data.link ? "Anyone on the internet with the link" : "Only people with access can open"}
+          right={data.link ? <RoleLabel text={data.link.can_edit ? "Can edit" : "Can view"} /> : null}
+        />
+      )}
+    </Panel>
+  );
+}
+
+/** The panel's frame: its content, then the link to copy, and an optional note. */
+function Panel({ pageId, note, children }: { pageId: string; note?: string | null; children: ReactNode }) {
+  const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(pageUrl(pageId));
@@ -65,77 +249,32 @@ function SharePanel({ pageId }: { pageId: string }) {
       /* clipboard blocked */
     }
   };
-
   return (
     <div className="text-[14px]">
-      <div className="p-3">
-        <InviteForm pageId={pageId} taken={(email) => email === myEmail || directEmails.has(email)} />
-
-        <ul aria-label="People with access" className="mt-3">
-          <Person
-            initial={(myName || myEmail)[0]}
-            name={myName ? `${myName} (you)` : "You"}
-            detail={myEmail}
-            owner
-            right={<span className="px-2 text-[13px] text-faint">Owner</span>}
-          />
-          {direct.map((m) => (
-            <Person key={m.email} initial={m.email[0]} name={m.email} right={<MemberRole pageId={pageId} member={m} />} />
-          ))}
-          {inherited.map((m) => (
-            <Person
-              key={m.email}
-              initial={m.email[0]}
-              name={m.email}
-              detail={
-                <>
-                  Via{" "}
-                  <Link to={`/p/${m.via.id}`} className="hover:text-ink hover:underline">
-                    {displayTitle(m.via.title)}
-                  </Link>
-                </>
-              }
-              right={<span className="px-2 text-[13px] text-faint">{m.can_edit ? "Can edit" : "Can view"}</span>}
-            />
-          ))}
-        </ul>
-
-        <p className="mt-4 mb-1 text-[12px] font-medium text-muted">General access</p>
-        {linkAbove ? (
-          <AccessRow
-            isPublic
-            title={<span className="text-ink">Anyone with the link</span>}
-            detail={
-              <>
-                Via{" "}
-                <Link to={`/p/${linkAbove.via.id}`} className="hover:text-ink hover:underline">
-                  {displayTitle(linkAbove.via.title)}
-                </Link>
-              </>
-            }
-            right={<span className="px-2 text-[13px] text-faint">{linkAbove.share.can_edit ? "Can edit" : "Can view"}</span>}
-          />
-        ) : (
-          <GeneralAccess pageId={pageId} />
-        )}
-      </div>
-
-      <div className="flex items-center border-t border-line px-1.5 py-1.5">
+      <div className="p-3">{children}</div>
+      <div className="flex items-center gap-2 border-t border-line px-1.5 py-1.5">
         <button
           onClick={() => void copy()}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-ink hover:bg-hover"
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-ink hover:bg-hover"
         >
           {copied ? <Check size={15} className="text-accent" /> : <Link2 size={15} className="text-muted" />}
           {copied ? "Link copied" : "Copy link"}
         </button>
+        {note && <p className="min-w-0 flex-1 px-1 text-right text-[12px] text-muted">{note}</p>}
       </div>
     </div>
   );
 }
 
-function InviteForm({ pageId, taken }: { pageId: string; taken: (email: string) => boolean }) {
+function InviteForm({
+  taken,
+  onInvite,
+}: {
+  taken: (email: string) => boolean;
+  onInvite: (email: string, role: Role) => Promise<InviteEmail>;
+}) {
   const [email, setEmail] = useState("");
-  const [canEdit, setCanEdit] = useState(true);
+  const [role, setRole] = useState<Role>("edit");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -148,7 +287,7 @@ function InviteForm({ pageId, taken }: { pageId: string; taken: (email: string) 
     setBusy(true);
     setError(null);
     try {
-      const mail = await useShares.getState().invite(pageId, addr, canEdit);
+      const mail = await onInvite(addr, role);
       setEmail("");
       useUi.getState().notify(inviteNotice(addr, mail));
     } catch (err) {
@@ -173,7 +312,7 @@ function InviteForm({ pageId, taken }: { pageId: string; taken: (email: string) 
             aria-label="Email to invite"
             className="h-full min-w-0 flex-1 bg-transparent pl-2.5 text-[14px] text-ink outline-none placeholder:text-faint"
           />
-          <RoleMenu label="Access for new person" canEdit={canEdit} onChange={setCanEdit} />
+          <RoleMenu label="Access for new person" role={role} onChange={setRole} />
         </div>
         <button
           type="submit"
@@ -195,57 +334,75 @@ function inviteNotice(email: string, mail: InviteEmail) {
   return `${email} can open the page now. ${why}, so send them the link.`;
 }
 
-function MemberRole({ pageId, member }: { pageId: string; member: Member }) {
-  const { setMemberCanEdit, removeMember, resendInvite } = useShares.getState();
-  const notify = useUi.getState().notify;
-  const fail = () => notify("Couldn't update access. Check your connection.");
+function OwnerMemberRole({ pageId, member }: { pageId: string; member: Member }) {
+  const { setMemberRole, removeMember, resendInvite } = useShares.getState();
+  const fail = () => useUi.getState().notify("Couldn't update access. Check your connection.");
   return (
     <RoleMenu
       label={`Access for ${member.email}`}
-      canEdit={member.can_edit}
-      onChange={(v) => void setMemberCanEdit(pageId, member.email, v).catch(fail)}
+      role={roleOf(member)}
+      onChange={(role) => void setMemberRole(pageId, member.email, role).catch(fail)}
       more={(close) => (
-        <>
-          <MenuDivider />
-          <MenuItem
-            onClick={() => {
-              close();
-              void resendInvite(pageId, member.email).then((mail) =>
-                notify(mail.sent || mail.reason === "recent" ? `Invitation sent to ${member.email}.` : inviteNotice(member.email, mail)),
-              );
-            }}
-          >
-            Resend invitation
-          </MenuItem>
-          <MenuItem
-            danger
-            onClick={() => {
-              close();
-              void removeMember(pageId, member.email).catch(fail);
-            }}
-          >
-            Remove
-          </MenuItem>
-        </>
+        <MemberActions
+          email={member.email}
+          close={close}
+          onResend={() => resendInvite(pageId, member.email)}
+          onRemove={() => void removeMember(pageId, member.email).catch(fail)}
+        />
       )}
     />
   );
 }
 
-/** "Only people invited" or "Anyone with the link" (view or edit) for this page. */
-function GeneralAccess({ pageId }: { pageId: string }) {
-  const share = useShares((s) => s.shares[pageId]);
+function MemberActions({
+  email,
+  close,
+  onResend,
+  onRemove,
+}: {
+  email: string;
+  close: () => void;
+  onResend: () => Promise<InviteEmail>;
+  onRemove: () => void;
+}) {
+  const notify = useUi.getState().notify;
+  return (
+    <>
+      <MenuDivider />
+      <MenuItem
+        onClick={() => {
+          close();
+          void onResend().then((mail) =>
+            notify(mail.sent || mail.reason === "recent" ? `Invitation sent to ${email}.` : inviteNotice(email, mail)),
+          );
+        }}
+      >
+        Resend invitation
+      </MenuItem>
+      <MenuItem
+        danger
+        onClick={() => {
+          close();
+          onRemove();
+        }}
+      >
+        Remove
+      </MenuItem>
+    </>
+  );
+}
+
+/** "Only people invited" or "Anyone with the link" (view or edit). */
+function GeneralAccess({ value, onSet }: { value: { can_edit: boolean } | null; onSet: (mode: LinkMode) => Promise<void> }) {
   const [pending, setPending] = useState<boolean | null>(null); // optimistic while the server catches up
-  const isPublic = pending ?? Boolean(share);
-  const { enable, disable, setCanEdit } = useShares.getState();
+  const isPublic = pending ?? Boolean(value);
   const notify = useUi.getState().notify;
 
-  const setPublic = async (next: boolean) => {
-    if (next === isPublic) return;
+  const set = async (mode: LinkMode) => {
     if (!navigator.onLine) return notify("You're offline. Sharing needs a connection.");
-    setPending(next);
+    setPending(mode !== "off");
     try {
-      await (next ? enable(pageId) : disable(pageId));
+      await onSet(mode);
     } catch {
       notify("Couldn't change access. Try again.");
     } finally {
@@ -253,7 +410,7 @@ function GeneralAccess({ pageId }: { pageId: string }) {
     }
   };
 
-  const canEdit = Boolean(share?.can_edit);
+  const canEdit = Boolean(value?.can_edit);
   return (
     <AccessRow
       isPublic={isPublic}
@@ -274,13 +431,13 @@ function GeneralAccess({ pageId }: { pageId: string }) {
                 selected={!isPublic}
                 title="Only people invited"
                 detail="Only people with access can open"
-                onClick={() => (close(), void setPublic(false))}
+                onClick={() => (close(), !isPublic || void set("off"))}
               />
               <Option
                 selected={isPublic}
                 title="Anyone with the link"
                 detail="Anyone on the internet with the link"
-                onClick={() => (close(), void setPublic(true))}
+                onClick={() => (close(), isPublic || void set("view"))}
               />
             </>
           )}
@@ -288,17 +445,42 @@ function GeneralAccess({ pageId }: { pageId: string }) {
       }
       detail={!isPublic ? "Only people with access can open" : canEdit ? "Editing needs a Margin account" : "Anyone on the internet with the link"}
       right={
-        isPublic && share ? (
+        isPublic && value ? (
           <RoleMenu
             label="Link access"
-            canEdit={canEdit}
-            onChange={(v) => void setCanEdit(pageId, v).catch(() => notify("Couldn't change access. Try again."))}
+            role={canEdit ? "edit" : "view"}
+            roles={["edit", "view"]}
+            onChange={(role) => void set(role === "edit" ? "edit" : "view")}
           />
         ) : null
       }
     />
   );
 }
+
+function LinkAbove({ canEdit, via }: { canEdit: boolean; via: { id: string; title: string } }) {
+  return (
+    <AccessRow
+      isPublic
+      title={<span className="text-ink">Anyone with the link</span>}
+      detail={<Via id={via.id} title={via.title} />}
+      right={<RoleLabel text={canEdit ? "Can edit" : "Can view"} />}
+    />
+  );
+}
+
+function Via({ id, title }: { id: string; title: string }) {
+  return (
+    <>
+      Via{" "}
+      <Link to={`/p/${id}`} className="hover:text-ink hover:underline">
+        {displayTitle(title)}
+      </Link>
+    </>
+  );
+}
+
+const RoleLabel = ({ text }: { text: string }) => <span className="shrink-0 px-2 text-[13px] text-faint">{text}</span>;
 
 function AccessRow({ isPublic, title, detail, right }: { isPublic: boolean; title: ReactNode; detail: ReactNode; right: ReactNode }) {
   return (
@@ -344,33 +526,36 @@ function Person({
   );
 }
 
-/** "Can edit" / "Can view", plus optional extra actions. */
+/** Full access, Can edit or Can view (links: edit or view), plus optional extra actions. */
 function RoleMenu({
   label,
-  canEdit,
+  role,
+  roles = ["full", "edit", "view"],
   onChange,
   more,
 }: {
   label: string;
-  canEdit: boolean;
-  onChange: (canEdit: boolean) => void;
+  role: Role;
+  roles?: Role[];
+  onChange: (role: Role) => void;
   more?: (close: () => void) => ReactNode;
 }) {
   return (
     <Dropdown
       label={label}
-      width={220}
+      width={230}
       trigger={
         <span className="inline-flex items-center gap-1 text-[13px] text-muted">
-          {canEdit ? "Can edit" : "Can view"}
+          {ROLES[role].title}
           <ChevronDown size={14} />
         </span>
       }
     >
       {(close) => (
         <>
-          <Option selected={canEdit} title="Can edit" detail="Edit text, one person at a time" onClick={() => (close(), onChange(true))} />
-          <Option selected={!canEdit} title="Can view" detail="Read only" onClick={() => (close(), onChange(false))} />
+          {roles.map((r) => (
+            <Option key={r} selected={role === r} title={ROLES[r].title} detail={ROLES[r].detail} onClick={() => (close(), onChange(r))} />
+          ))}
           {more?.(close)}
         </>
       )}
