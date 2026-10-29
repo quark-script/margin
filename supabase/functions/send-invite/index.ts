@@ -1,11 +1,13 @@
 // Emails an invitation after someone invites a person to a page. The app creates the invite
 // (the owner directly, people with full access through notes.share_invite); this checks the
 // caller may share the page and the invite exists, then sends it through Resend. Needs the
-// RESEND_API_KEY secret; without it nothing is sent and the app says to send the link instead.
+// RESEND_API_KEY, SITE_URL (Margin's address) and INVITE_FROM (a sender Resend accepts, such as
+// "Margin <margin@example.com>") secrets; without them nothing is sent and the app says to send
+// the link instead.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://margin.dhanpulse.in";
-const FROM = Deno.env.get("INVITE_FROM") ?? "Margin <margin@dhanpulse.in>";
+const SITE_URL = Deno.env.get("SITE_URL")?.replace(/\/+$/, "");
+const FROM = Deno.env.get("INVITE_FROM");
 const DAILY_LIMIT = 50; // per person inviting, against using this to send spam
 const RESEND_GAP_MS = 10 * 60_000;
 
@@ -59,7 +61,7 @@ Deno.serve(async (req) => {
   if (!invite || !page) return json({ error: "not found" }, 404);
 
   const key = Deno.env.get("RESEND_API_KEY");
-  if (!key) return json({ sent: false, reason: "not_configured" });
+  if (!key || !SITE_URL || !FROM) return json({ sent: false, reason: "not_configured" });
 
   const since = (ms: number) => new Date(Date.now() - ms).toISOString();
   const { count: today } = await admin

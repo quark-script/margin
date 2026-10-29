@@ -26,6 +26,9 @@
     },
     "api/oauth-protected-resource.ts": {
       "maxDuration": 10
+    },
+    "api/health.ts": {
+      "maxDuration": 10
     }
   }
 }

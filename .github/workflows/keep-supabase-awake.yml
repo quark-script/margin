@@ -1,33 +1,23 @@
 name: Keep Supabase awake
 
-# Supabase pauses free projects after a week without activity. A small database read every
-# three days keeps Margin's project running. If the project has already been paused, the run
-# fails and GitHub emails you.
+# Supabase pauses free projects after a week without activity. Margin's health check reads from
+# the database, so calling it every three days keeps the project running. If it fails (the project
+# was paused, or the site is down), GitHub emails you. For your own deployment, set the SITE_URL
+# repository variable. In a public repository, GitHub turns scheduled workflows off after 60 days
+# without commits; turn it back on from the Actions tab.
 on:
   schedule:
     - cron: "23 4 */3 * *" # 04:23 UTC on days 1, 4, 7, ... of each month
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
-
-      - name: Read from the database
-        run: |
-          set -a; . ./.env; set +a
-          # What a signed-out visitor's browser asks when opening a page link. For a page that
-          # doesn't exist the answer is null, so this reads the database without exposing anything.
-          status=$(curl -sS -o body.json -w "%{http_code}" --retry 3 --retry-all-errors --retry-delay 20 \
-            -X POST "$VITE_SUPABASE_URL/rest/v1/rpc/shared_tree" \
-            -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY" \
-            -H "Content-Type: application/json" \
-            -H "Content-Profile: notes" \
-            -d '{"p_page_id":"00000000-0000-0000-0000-000000000000"}')
-          echo "Supabase answered $status: $(cat body.json)"
-          test "$status" = 200
+      - name: Check the site and its database
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://margin.dhanpulse.in' }}
+        run: curl -fsS --retry 3 --retry-all-errors --retry-delay 20 "$SITE_URL/api/health"

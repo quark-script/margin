@@ -1,50 +1,65 @@
 # Margin
 
-A quiet notes app, private by default: your notes stay on your device and sync only if you want them to. Nested pages, linked notes, a block editor, search and sharing. Installable as a PWA.
+A quiet notes app that works offline. Nested pages, linked notes, a block editor, sharing and
+version history. Use it without an account and nothing leaves your browser; sign in to sync
+across devices. AI apps such as Claude and ChatGPT can search, read and write your notes through
+its MCP server.
 
-Built with React, TypeScript, BlockNote and Supabase.
+Live at [margin.dhanpulse.in](https://margin.dhanpulse.in). Built with React, TypeScript,
+[BlockNote](https://www.blocknotejs.org) and [Supabase](https://supabase.com).
 
 ## Features
 
-- Nested pages with favorites and trash
-- Links between pages (`[[`) with backlinks; links follow renames
-- Daily notes: one click opens today's page
-- Share like a doc: invite people by email (with an invitation email) as Full access (edit, and share with others), Can edit or Can view, and/or open a page to anyone with the link, view or edit. One link per page; pages shared with you appear under "Shared with me". Everyone invited sees who has access; only the owner and people with full access see email addresses and change sharing
-- One editor at a time on shared pages, with the editor's name shown to everyone else; editing always needs an account
-- Version history for every page: see what changed in each version (highlighted), preview and restore. Saves that change nothing visible don't count
-- Block editor with images, tables, code and to-dos. Images and PDFs up to 10 MB each, 100 MB per account; Settings shows what's used and deletes files no page uses
-- Search across titles and content (`Ctrl/⌘ K`)
-- Import Markdown (an Obsidian vault as a .zip, or .md files) and export everything as Markdown
-- Copy a page as Markdown, or save it as a PDF
-- Private by default. Without an account, nothing leaves the browser. Signed in, only pages you share sync until you turn on Sync all pages (per device, in Settings); then everything syncs and updates live across devices
-- Works offline, including images, which go up when their page syncs
-- On pages shared by invite, faces show who is there now; the owner also sees who viewed a page and how often its link was opened (people can opt out in Settings)
-- Without an account, a strip at the top says pages are only on this device. Signing in from there backs them up: they go into the account and sync
-- Works with AI agents: Claude, ChatGPT, Cursor and other MCP apps connect at `/mcp` with OAuth sign-in to search, read and write pages (guide at `/agents`), within per-account limits
-- Light and dark themes, mobile layout
-- Settings page: name, password, theme, import and export
-- Sign in with email or Google; delete your account and all its data in Settings
+- **Pages**: nested pages, favorites, trash, `[[` links with backlinks, daily notes, search
+- **Editor**: blocks, to-dos, tables, code, images and PDFs (10 MB each, 100 MB per account)
+- **Offline first**: everything is saved on the device first and syncs in the background, live
+  across devices. Without an account nothing leaves the browser. Sync can be turned off per
+  device; then only shared pages sync
+- **Sharing**: invite people by email as Full access, Can edit or Can view, or open a page to
+  anyone with the link. People take turns editing, and everyone else sees who is
+- **Version history**: what changed in each version, highlighted, and restore
+- **Presence**: faces show who has a shared page open; the owner also sees who viewed it
+- **Import and export**: Markdown in (an Obsidian vault as a .zip) and out, a page as PDF
+- **AI agents**: an [MCP](https://modelcontextprotocol.io) server at `/mcp` with OAuth sign-in,
+  eight tools and per-account limits ([how to connect](https://margin.dhanpulse.in/agents))
+- **Accounts**: email or Google sign-in; delete your account and everything in it
 
-## Development
+## Quick start
 
 ```bash
 npm install
+cp .env.example .env   # then fill in your Supabase project's URL and publishable key
 npm run dev
 ```
 
-Requires a Supabase project with `supabase/schema.sql` and `supabase/migrations/*.sql` applied, the `notes` schema exposed in the Data API, and the edge functions in `supabase/functions` deployed: `share-file` with JWT verification off, `send-invite` and `delete-account` with it on. Invitation emails need a `RESEND_API_KEY` edge function secret. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`. Optional: `VITE_TURNSTILE_SITE_KEY` turns on a Cloudflare Turnstile check for sign-up, sign-in and password reset (enable CAPTCHA protection in Supabase Auth with the matching secret).
+The app needs a Supabase project set up with `supabase/schema.sql`.
+[docs/self-hosting.md](docs/self-hosting.md) walks through it, and deploying on Vercel.
 
-Auth email templates are in `supabase/templates`.
+## Tests
 
-## Deployment
+```bash
+npm test             # everything
+npm run test:mcp     # the MCP server, with an in-memory database
+npm run test:e2e     # the app in Chromium, against a fake Supabase (no project needed)
+```
 
-Any static host. `vercel.json` and `public/_redirects` handle client-side routing.
+The browser tests need Playwright's Chromium once: `npx playwright install chromium`.
 
-On Vercel, turn on Web Analytics in the project's Analytics tab, then redeploy. Page and share links reach it as `/p/[page]` and `/s/[link]`, without ids, tokens, query strings or fragments (`src/lib/analytics.ts`).
+## Layout
 
-## Sync
+```
+src/         the app: React, zustand stores, BlockNote editor
+  store/     pages (offline storage and sync), sign-in, sharing
+  lib/       Markdown, sharing and presence calls, version diffs, media, search helpers
+  pages/     screens: home, page, shared page, settings, sign-in, landing, AI agents guide
+api/         Vercel functions: the MCP server and a health check
+supabase/    schema.sql (the whole database), edge functions, auth email templates
+tests/       browser suites with a mock Supabase, and the MCP server test
+docs/        self-hosting and architecture
+```
 
-Edits are saved locally first (IndexedDB) and pushed to Supabase in the background. Changes from other devices arrive through Realtime. Conflicts resolve last-write-wins per page.
+[docs/architecture.md](docs/architecture.md) explains sync, sharing, version history and the MCP
+server.
 
 ## Keyboard shortcuts
 
@@ -55,3 +70,13 @@ Edits are saved locally first (IndexedDB) and pushed to Supabase in the backgrou
 | `Alt N` | New page |
 | `/` | Insert a block |
 | `[[` | Link to a page |
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Please report security problems privately, as
+[SECURITY.md](SECURITY.md) describes.
+
+## License
+
+[AGPL-3.0](LICENSE). You can use, change and host Margin. If you let others use a changed version
+over a network, share your changes under the same license.

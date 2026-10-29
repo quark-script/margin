@@ -3,3 +3,9 @@ dist
 dev-dist
 *.local
 .DS_Store
+.env
+.env.*
+!.env.example
+.vercel
+tests/output
+.e2e-dist

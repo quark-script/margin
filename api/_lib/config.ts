@@ -1,4 +1,4 @@
-// Settings for the MCP server. The Supabase URL and publishable key are the same public values
+// Settings for the API functions. The Supabase URL and publishable key are the same public values
 // the app ships to the browser; data is protected by row level security and the caller's token.
 
 export const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");

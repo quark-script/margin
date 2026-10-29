@@ -1,19 +1,22 @@
 // Uploads the auth email templates and sets the Site URL and redirect URLs.
 //
-//   SUPABASE_ACCESS_TOKEN=sbp_... node supabase/apply-auth-config.mjs
+//   SUPABASE_ACCESS_TOKEN=sbp_... PROJECT_REF=... SITE_URL=https://notes.example.com \
+//     node supabase/apply-auth-config.mjs
 //
-// Create a token at https://supabase.com/dashboard/account/tokens. Optional:
-// PROJECT_REF and SITE_URL. The redirect URLs become Margin's addresses only.
+// Create a token at https://supabase.com/dashboard/account/tokens, and revoke it afterwards.
+// EXTRA_URLS (optional, comma separated): other addresses Margin answers on. The redirect URLs
+// become Margin's addresses only.
 
 import { readFile } from "node:fs/promises";
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
-const ref = process.env.PROJECT_REF || "ykowlfymtwzirnzwiiov";
-const site = (process.env.SITE_URL || "https://margin.dhanpulse.in").replace(/\/$/, "");
-if (!token) {
-  console.error("Set SUPABASE_ACCESS_TOKEN first.");
+const ref = process.env.PROJECT_REF;
+const site = (process.env.SITE_URL || "").replace(/\/$/, "");
+if (!token || !ref || !site) {
+  console.error("Set SUPABASE_ACCESS_TOKEN, PROJECT_REF and SITE_URL first.");
   process.exit(1);
 }
+const extra = (process.env.EXTRA_URLS || "").split(",").map((u) => u.trim().replace(/\/$/, "")).filter(Boolean);
 
 const api = `https://api.supabase.com/v1/projects/${ref}/config/auth`;
 const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -33,9 +36,8 @@ if (!res.ok) {
 }
 const current = await res.json();
 
-// Auth emails and Google sign-in may only send people back to Margin: its domain, and the
-// Vercel address it also answers on.
-const allow = [site, "https://margin-murex-seven.vercel.app"].map((u) => `${u}/**`);
+// Auth emails and Google sign-in may only send people back to Margin's own addresses.
+const allow = [site, ...extra].map((u) => `${u}/**`);
 
 const body = { site_url: site, uri_allow_list: allow.join(",") };
 for (const [key, file, subject] of templates) {
