@@ -1,3 +1,31 @@
 {
-  "rewrites": [{ "source": "/((?!assets/|_vercel/|sw.js|workbox-|manifest.webmanifest|.*\\.(?:png|svg|ico|woff2)).*)", "destination": "/index.html" }]
+  "regions": [
+    "bom1"
+  ],
+  "rewrites": [
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": "/api/oauth-protected-resource"
+    },
+    {
+      "source": "/.well-known/oauth-protected-resource/mcp",
+      "destination": "/api/oauth-protected-resource"
+    },
+    {
+      "source": "/((?!assets/|_vercel/|api/|sw.js|workbox-|manifest.webmanifest|.*\\.(?:png|svg|ico|woff2)).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "functions": {
+    "api/mcp.ts": {
+      "maxDuration": 30
+    },
+    "api/oauth-protected-resource.ts": {
+      "maxDuration": 10
+    }
+  }
 }

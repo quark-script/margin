@@ -212,7 +212,10 @@ export function HistoryPanel() {
                       {timeLabel(r.saved_at)}
                       {i === 0 && <span className="ml-1.5 text-[12px] text-muted">Current</span>}
                     </span>
-                    <span className="text-[12px] text-muted">{r.mine ? "You" : (r.editor ?? "Someone")}</span>
+                    <span className="text-[12px] text-muted">
+                      {r.mine ? "You" : (r.editor ?? "Someone")}
+                      {r.via ? `, via ${r.via}` : ""}
+                    </span>
                   </button>
                 </div>
               );

@@ -9,6 +9,8 @@ import { PageView } from "./pages/PageView";
 import { PublicPage, TokenRedirect } from "./pages/SharedView";
 import { Landing } from "./pages/Landing";
 import { Privacy } from "./pages/Privacy";
+import { Agents } from "./pages/Agents";
+import { OAuthConsent } from "./pages/OAuthConsent";
 import { Settings } from "./pages/Settings";
 import { authLinkErrorCode } from "./lib/supabase";
 import { takeNext } from "./lib/next";
@@ -101,6 +103,10 @@ export default function App() {
             <Route path="shared/:rootId/:pageId?" element={<SharedRedirect />} />
           </Route>
           <Route path="privacy" element={<Privacy />} />
+          {/* AI agents: the guide, and an app asking to connect. */}
+          <Route path="agents" element={<Agents />} />
+          <Route path="mcp" element={<Navigate to="/agents" replace />} />
+          <Route path="oauth/consent" element={<OAuthConsent />} />
           {/* Without an account: signing in or up moves this device's pages into the account. */}
           {!session && <Route path="login" element={<Login />} />}
           {!session && <Route path="signup" element={<Login key="signup" initialMode="signup" />} />}
@@ -112,6 +118,9 @@ export default function App() {
           <Route index element={isInstalled() || authLinkErrorCode || linkFailed || signedOut ? <Login /> : <Landing />} />
           <Route path="signup" element={<Login key="signup" initialMode="signup" />} />
           <Route path="privacy" element={<Privacy />} />
+          <Route path="agents" element={<Agents />} />
+          <Route path="mcp" element={<Navigate to="/agents" replace />} />
+          <Route path="oauth/consent" element={<OAuthConsent />} />
           {/* A page link: the page itself if it's open to anyone with the link, else sign-in. */}
           <Route path="p/:pageId" element={<PublicPage />} />
           <Route path="*" element={<Login />} />

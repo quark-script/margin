@@ -46,6 +46,10 @@ export function Privacy() {
               <b>Sharing:</b> the email addresses you invite to a page, and who edited a shared page and when.
             </li>
             <li>
+              <b>Connected AI apps:</b> which apps you connected to Margin and when, when each was last used, and how many
+              requests your apps made this minute and today (for the limits).
+            </li>
+            <li>
               <b>Views of shared pages:</b> on a page shared by invitation, when each person invited (and its owner) last had
               it open, and how many visits that was. For a page open to anyone with its link, only how many times the link was
               opened and when last, without who opened it.
@@ -84,6 +88,15 @@ export function Privacy() {
             sees who opened it before and when. To stay out of this on pages shared with you, turn off Show when I view shared
             pages in Settings: you no longer show up, and the record of pages you opened is deleted. People who open a page
             through its link are only counted, never named.
+          </p>
+        </Section>
+
+        <Section title="AI agents">
+          <p>
+            If you connect an AI app (such as Claude, ChatGPT or Cursor) to Margin, it can search, read and change the pages in
+            your account through Margin, as you. What it reads is sent to the company that runs it, under their terms; Margin
+            itself doesn't send your notes anywhere else. Its changes show in each page's version history, marked with the app's
+            name. You can disconnect an app at any time in Settings.
           </p>
         </Section>
 

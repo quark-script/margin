@@ -28,7 +28,7 @@ const field =
 const primary =
   "mt-1 h-10 w-full rounded-md bg-ink text-[15px] font-medium text-paper hover:opacity-90 disabled:opacity-50";
 
-function Shell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+export function Shell({ title, subtitle, children }: { title: string; subtitle: string; children?: React.ReactNode }) {
   return (
     <main className="safe-top flex min-h-full items-center justify-center px-5 py-12">
       <div className="w-full max-w-[340px]">

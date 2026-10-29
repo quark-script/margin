@@ -7,6 +7,7 @@ import { LOCAL_ID, LOCAL_PREFIX, localFile, localFileUrl, saveLocalFile } from "
 import { MAX_FILE_BYTES, uploadToStorage } from "./media";
 import { displayTitle } from "./text";
 import type { Block } from "./types";
+import { mapBlocks, mapInline } from "./blockTree";
 import { childrenOf, isTrashed, usePages } from "../store/pages";
 
 // Placeholder URLs that survive the Markdown parser; replaced after parsing.
@@ -24,36 +25,6 @@ function nameFor(title: string, used: Set<string>) {
   for (let i = 2; used.has(name.toLowerCase()); i++) name = `${base} ${i}`;
   used.add(name.toLowerCase());
   return name;
-}
-
-function mapInline(c: unknown, fn: (node: Record<string, unknown>) => unknown): unknown {
-  if (!Array.isArray(c)) {
-    // tables: { type: "tableContent", rows: [{ cells: [...] }] }
-    const t = c as { rows?: { cells?: unknown[] }[] } | undefined;
-    if (t && Array.isArray(t.rows)) {
-      return {
-        ...t,
-        rows: t.rows.map((r) => ({
-          ...r,
-          cells: r.cells?.map((cell) => {
-            const o = cell as { content?: unknown };
-            return Array.isArray(cell) ? mapInline(cell, fn) : o && typeof o === "object" ? { ...o, content: mapInline(o.content, fn) } : cell;
-          }),
-        })),
-      };
-    }
-    return c;
-  }
-  // fn may return a node, an array of nodes (unwrapping a link), or the node unchanged.
-  return c.flatMap((n) => {
-    const node = n as Record<string, unknown>;
-    const inner = node?.type === "link" ? { ...node, content: mapInline(node.content, fn) } : node;
-    return [fn(inner)].flat();
-  });
-}
-
-function mapBlocks(blocks: Block[], fn: (b: Block) => Block): Block[] {
-  return blocks.map((b) => fn({ ...b, children: b.children ? mapBlocks(b.children, fn) : b.children }));
 }
 
 const today = () => new Date().toISOString().slice(0, 10);

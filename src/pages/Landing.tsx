@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../store/auth";
-import { CalendarDays, FileText, Link2, Lock, RefreshCw, Upload, WifiOff } from "lucide-react";
+import { Bot, CalendarDays, FileText, Link2, Lock, RefreshCw, Upload, WifiOff } from "lucide-react";
 
 const features = [
   { icon: Lock, title: "Private by default", text: "Your notes stay on your device. Nothing leaves it unless you sync or share it." },
@@ -70,6 +70,21 @@ export function Landing() {
               <p className="mt-1 text-[14px] leading-relaxed text-muted">{text}</p>
             </div>
           ))}
+        </section>
+
+        <section className="flex flex-col items-center border-t border-line py-14 text-center sm:flex-row sm:gap-5 sm:text-left">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-hover text-muted">
+            <Bot size={20} strokeWidth={1.75} />
+          </span>
+          <div className="mt-3 sm:mt-0">
+            <h2 className="text-[15px] font-semibold text-ink">Works with your AI agent</h2>
+            <p className="mt-1 text-[14px] text-muted">
+              Connect Claude, ChatGPT, Cursor and other apps to find, read and write your notes.{" "}
+              <Link to="/agents" className="text-ink underline decoration-faint underline-offset-2 hover:decoration-ink">
+                How to connect
+              </Link>
+            </p>
+          </div>
         </section>
 
         <section className="border-t border-line py-16 text-center">

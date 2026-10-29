@@ -11,6 +11,9 @@ import { supabase } from "../lib/supabase";
 import { download } from "../lib/download";
 import { deleteFiles, formatBytes, STORAGE_LIMIT_BYTES, storageUsed, unusedFiles } from "../lib/media";
 import { forgetMyViews } from "../lib/share";
+import { timeAgo } from "../lib/text";
+import type { OAuthGrant } from "@supabase/supabase-js";
+import { CopyButton, mcpUrl } from "./Agents";
 
 /** Everything as Markdown in a .zip, images included. Also offered before deleting the account. */
 export async function exportEverything() {
@@ -33,6 +36,7 @@ export function Settings() {
           {local ? <ThisDevice /> : <Account />}
           {!local && <Sync />}
           {!local && <ViewPrivacy />}
+          {!local && <AgentApps />}
           <Appearance />
           {!local && <Storage />}
           <Data />
@@ -132,6 +136,68 @@ function ViewPrivacy() {
           <span className={`switch ${hidden ? "" : "on"}`} aria-hidden="true" />
         </button>
       </Row>
+    </Section>
+  );
+}
+
+/** AI agents: how to connect one, and the apps that are connected (Supabase Auth's OAuth grants). */
+function AgentApps() {
+  const navigate = useNavigate();
+  const [grants, setGrants] = useState<OAuthGrant[] | null>(null);
+  const [lastUsed, setLastUsed] = useState<Record<string, string>>({});
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const [g, a] = await Promise.all([supabase.auth.oauth.listGrants(), supabase.rpc("my_agent_activity")]);
+    // 404: Supabase's OAuth server isn't switched on yet, so nothing can be connected.
+    setFailed(Boolean(g.error) && (g.error as { status?: number }).status !== 404);
+    setGrants(g.error ? [] : (g.data ?? []));
+    if (!a.error) {
+      const rows = (a.data ?? []) as { client_id: string; last_used_at: string }[];
+      setLastUsed(Object.fromEntries(rows.map((r) => [r.client_id, r.last_used_at])));
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const disconnect = async (g: OAuthGrant) => {
+    const name = g.client.name || "this app";
+    if (!window.confirm(`Disconnect ${name}? It can't use your pages again until you connect it again.`)) return;
+    setBusy(g.client.id);
+    const { error } = await supabase.auth.oauth.revokeGrant({ clientId: g.client.id });
+    setBusy(null);
+    if (error) return useUi.getState().notify("Couldn't disconnect it. Try again.");
+    await load();
+  };
+
+  return (
+    <Section title="AI agents">
+      <Row label="Use Margin from an AI app" hint="Claude, ChatGPT, Cursor and other apps that support MCP can search, read and write your pages.">
+        <button className={button} onClick={() => navigate("/agents")}>
+          How to connect
+        </button>
+      </Row>
+      <Row label="Address for AI apps" hint={<span className="break-all font-mono">{mcpUrl()}</span>}>
+        <CopyButton text={mcpUrl()} />
+      </Row>
+      {grants !== null && grants.length === 0 && (
+        <Row label="Connected apps" hint={failed ? "Couldn't load your connected apps. Try again later." : "None yet."} />
+      )}
+      {grants?.map((g) => (
+        <Row
+          key={g.client.id}
+          label={g.client.name || "An AI app"}
+          hint={`Connected ${new Date(g.granted_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}${
+            lastUsed[g.client.id] ? `, last used ${timeAgo(lastUsed[g.client.id])}` : ""
+          }`}
+        >
+          <button className={button} disabled={busy === g.client.id} onClick={() => void disconnect(g)}>
+            Disconnect
+          </button>
+        </Row>
+      ))}
     </Section>
   );
 }

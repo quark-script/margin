@@ -20,6 +20,7 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Works offline, including images, which go up when their page syncs
 - On pages shared by invite, faces show who is there now; the owner also sees who viewed a page and how often its link was opened (people can opt out in Settings)
 - Without an account, a strip at the top says pages are only on this device. Signing in from there backs them up: they go into the account and sync
+- Works with AI agents: Claude, ChatGPT, Cursor and other MCP apps connect at `/mcp` with OAuth sign-in to search, read and write pages (guide at `/agents`), within per-account limits
 - Light and dark themes, mobile layout
 - Settings page: name, password, theme, import and export
 - Sign in with email or Google; delete your account and all its data in Settings

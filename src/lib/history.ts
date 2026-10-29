@@ -4,11 +4,14 @@ import { blocksToText } from "./text";
 import { editorId, lockPage, unlockPage } from "./share";
 import { usePages } from "../store/pages";
 
-export type VersionRow = { id: number; title: string; saved_at: string; editor: string | null; mine: boolean };
+/** via: the AI app that made the version, if one did. */
+export type VersionRow = { id: number; title: string; saved_at: string; editor: string | null; mine: boolean; via?: string | null };
 export type Version = { title: string; icon: string | null; content: Block[] };
 
 /** A page's versions, newest first (the owner, and people invited with edit access). */
 export async function fetchHistory(pageId: string): Promise<VersionRow[]> {
+  const v2 = await supabase.rpc("page_history_v2", { p_page_id: pageId });
+  if (!v2.error) return (v2.data ?? []) as VersionRow[];
   const { data, error } = await supabase.rpc("page_history", { p_page_id: pageId });
   if (error) throw error;
   return (data ?? []) as VersionRow[];
