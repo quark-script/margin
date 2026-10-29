@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom";
 import { Check, ChevronDown, Globe, Link2, Lock } from "lucide-react";
 import { ancestorsOf, usePages } from "../store/pages";
-import { roleOf, shareCovering, useShares, type Member, type Role } from "../store/shares";
+import { roleOf, shareCovering, useShares, type Member, type Role, type Share } from "../store/shares";
 import { useAuth } from "../store/auth";
 import { useUi } from "../store/ui";
 import {
@@ -16,13 +16,19 @@ import {
   type InviteEmail,
   type PageSharing,
 } from "../lib/share";
-import { displayTitle } from "../lib/text";
+import { displayTitle, timeAgo } from "../lib/text";
 import { supabase } from "../lib/supabase";
 import { MenuDivider, MenuItem, Popover } from "./Menu";
 
 const NO_MEMBERS: Member[] = [];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type LinkMode = "off" | "view" | "edit";
+
+// Visits through the link are counted without knowing who made them.
+const linkVisits = (s: Share) =>
+  s.views && s.last_viewed_at
+    ? `Link opened ${s.views} time${s.views === 1 ? "" : "s"}, most recently ${timeAgo(s.last_viewed_at)}`
+    : "Link not opened yet";
 
 const ROLES: Record<Role, { title: string; detail: string }> = {
   full: { title: "Full access", detail: "Edit, and share with others" },
@@ -181,6 +187,7 @@ function OwnerPanel({ pageId }: { pageId: string }) {
       ) : (
         <GeneralAccess value={share ? { can_edit: share.can_edit } : null} onSet={setLink} />
       )}
+      {share && !linkAbove && <p className="pl-11 text-[12px] text-muted">{linkVisits(share)}</p>}
     </Panel>
   );
 }

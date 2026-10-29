@@ -18,6 +18,7 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Copy a page as Markdown, or save it as a PDF
 - Private by default. Without an account, nothing leaves the browser. Signed in, only pages you share sync until you turn on Sync all pages (per device, in Settings); then everything syncs and updates live across devices
 - Works offline, including images, which go up when their page syncs
+- On pages shared by invite, faces show who is there now; the owner also sees who viewed a page and how often its link was opened (people can opt out in Settings)
 - Without an account, a strip at the top says pages are only on this device. Signing in from there backs them up: they go into the account and sync
 - Light and dark themes, mobile layout
 - Settings page: name, password, theme, import and export

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 const CONTACT = "margin@dhanpulse.in";
-const UPDATED = "28 October 2026";
+const UPDATED = "29 October 2026";
 
 /** /privacy, for everyone. Plain and specific about what Margin does with data. */
 export function Privacy() {
@@ -46,6 +46,11 @@ export function Privacy() {
               <b>Sharing:</b> the email addresses you invite to a page, and who edited a shared page and when.
             </li>
             <li>
+              <b>Views of shared pages:</b> on a page shared by invitation, when each person invited (and its owner) last had
+              it open, and how many visits that was. For a page open to anyone with its link, only how many times the link was
+              opened and when last, without who opened it.
+            </li>
+            <li>
               <b>Visit counts:</b> Margin counts visits with Vercel Web Analytics: which kind of screen was opened (such as
               the home page, or "a page" without saying which), with the browser, device type and country. It uses no cookies,
               doesn't identify you or follow you to other sites, and never sees page names, page links or your notes. There are
@@ -73,6 +78,12 @@ export function Privacy() {
           <p>
             Only you, unless you share a page. You can invite people by email, or open a page to anyone with its link. Either
             way the sub-pages inside it are included. You can change or remove sharing at any time from the page's Share menu.
+          </p>
+          <p className="mt-2">
+            On a page shared by invitation, everyone who can open it sees who else has it open right now, and its owner also
+            sees who opened it before and when. To stay out of this on pages shared with you, turn off Show when I view shared
+            pages in Settings: you no longer show up, and the record of pages you opened is deleted. People who open a page
+            through its link are only counted, never named.
           </p>
         </Section>
 
@@ -103,6 +114,10 @@ export function Privacy() {
           <ul className="list-disc space-y-1.5 pl-5">
             <li>Your data is kept while you have an account.</li>
             <li>Version history keeps every version for 30 days, then one version per day.</li>
+            <li>
+              Views of a shared page are kept until the page or your account is deleted, or you turn them off in Settings.
+              Someone who loses access to a page is no longer shown on it.
+            </li>
             <li>You can delete pages at any time (Trash, then Delete forever) and export everything as Markdown from Settings.</li>
             <li>
               You can delete your account in Settings (Delete account). Your pages, images, version history and

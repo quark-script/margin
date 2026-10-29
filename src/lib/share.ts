@@ -101,6 +101,31 @@ export const unlockPageOnExit = (pageId: string) => rpcOnExit("unlock_page", { p
 export const pageLockInfo = (pageId: string) =>
   rpc<{ editor: string; name: string | null } | null>("page_lock_info", { p_page_id: pageId });
 
+/** Someone on a page shared by invite now, or (for its owner) someone who opened it before. */
+export type Viewer = {
+  id: string;
+  name: string | null;
+  avatar: string | null;
+  /** As in the Share panel: the owner sees everyone's, people invited see the owner's. */
+  email: string | null;
+  owner: boolean;
+  here: boolean;
+  editing: boolean;
+  /** For the owner only. */
+  last_seen_at: string | null;
+  visits: number | null;
+};
+export type Presence = { owner_view: boolean; people: Viewer[] };
+/** Check in on an open page (here false: leaving it) and see who else is here. */
+export const pagePresence = (pageId: string, here = true) =>
+  rpc<Presence | null>("page_presence", { p_page_id: pageId, p_here: here });
+export const leavePageOnExit = (pageId: string, accessToken: string) =>
+  rpcOnExit("page_presence", { p_page_id: pageId, p_here: false }, accessToken);
+/** A visit through "Anyone with the link": counted on the link, nobody identified. */
+export const recordLinkView = (pageId: string) => rpc<null>("record_link_view", { p_page_id: pageId }).catch(() => null);
+/** "Show when I view shared pages" turned off: forget which pages you opened. */
+export const forgetMyViews = () => rpc<null>("forget_my_views", {});
+
 export type IncomingShare = { page_id: string; title: string; icon: string | null; owner_name: string | null; can_edit: boolean };
 
 /** Pages other people invited this user to. */

@@ -10,6 +10,7 @@ import { useTheme, type ThemePref } from "../lib/theme";
 import { supabase } from "../lib/supabase";
 import { download } from "../lib/download";
 import { deleteFiles, formatBytes, STORAGE_LIMIT_BYTES, storageUsed, unusedFiles } from "../lib/media";
+import { forgetMyViews } from "../lib/share";
 
 /** Everything as Markdown in a .zip, images included. Also offered before deleting the account. */
 export async function exportEverything() {
@@ -31,6 +32,7 @@ export function Settings() {
           <h1 className="page-title text-ink">Settings</h1>
           {local ? <ThisDevice /> : <Account />}
           {!local && <Sync />}
+          {!local && <ViewPrivacy />}
           <Appearance />
           {!local && <Storage />}
           <Data />
@@ -84,6 +86,50 @@ function Sync() {
           className="flex items-center rounded-md p-1 hover:bg-hover"
         >
           <span className={`switch ${syncOn ? "on" : ""}`} aria-hidden="true" />
+        </button>
+      </Row>
+    </Section>
+  );
+}
+
+function ViewPrivacy() {
+  const hidden = useAuth((s) => Boolean(s.session?.user.user_metadata?.hide_views));
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const toggle = async () => {
+    if (busy) return;
+    if (!navigator.onLine) return setNote("You're offline. Try again when you're back online.");
+    setBusy(true);
+    setNote(null);
+    const { error } = await supabase.auth.updateUser({ data: { hide_views: !hidden } });
+    // Turning it off also forgets the pages you opened.
+    const forgotten = error || hidden ? true : await forgetMyViews().then(() => true, () => false);
+    setBusy(false);
+    if (error) setNote("Couldn't save this. Try again.");
+    else if (!forgotten) setNote("Saved. The record of pages you opened couldn't be deleted yet; try again later.");
+  };
+
+  return (
+    <Section title="Privacy">
+      <Row
+        label="Show when I view shared pages"
+        hint={
+          note ??
+          (hidden
+            ? "Off: you don't show up on pages people share with you, and nothing about your visits is kept."
+            : "On pages people share with you, they see when you're there, and the owner sees when you last opened them.")
+        }
+      >
+        <button
+          role="switch"
+          aria-checked={!hidden}
+          aria-label="Show when I view shared pages"
+          disabled={busy}
+          onClick={() => void toggle()}
+          className="flex items-center rounded-md p-1 hover:bg-hover disabled:opacity-50"
+        >
+          <span className={`switch ${hidden ? "" : "on"}`} aria-hidden="true" />
         </button>
       </Row>
     </Section>

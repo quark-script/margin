@@ -12,6 +12,7 @@ import type { Block } from "../lib/types";
 import {
   fetchTree,
   fetchTreeState,
+  recordLinkView,
   saveSharedPage,
   saveSharedPageOnExit,
   sharedFileUrl,
@@ -20,11 +21,13 @@ import {
   type SharedTree,
 } from "../lib/share";
 import { useEditLock } from "../lib/useEditLock";
+import { usePresence } from "../lib/usePresence";
 import { PageLinkContext } from "../lib/pageLinkContext";
 import { EditorBoundary } from "../components/EditorBoundary";
 import { IconButton, MenuItem, Popover } from "../components/Menu";
 import { TopBar } from "../components/TopBar";
 import { ShareMenu } from "../components/ShareMenu";
+import { Facepile } from "../components/Facepile";
 import { Login } from "./Login";
 
 const Editor = lazy(() => import("../components/Editor").then((m) => ({ default: m.Editor })));
@@ -189,6 +192,20 @@ function SharedView({ pageId, layout }: { pageId: string; layout: "app" | "publi
     if (current) document.title = `${current.icon ? current.icon + " " : ""}${displayTitle(current.title)}`;
   }, [current]);
 
+  // Invited: who else is here. Through the link: one visit counted, nobody identified.
+  const presence = usePresence(current?.id ?? "", layout === "app" && tree?.via === "invite" && Boolean(session));
+  useEffect(() => {
+    if (tree?.via !== "link") return;
+    const key = `margin:link-visit:${tree.root_id}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      /* storage blocked: count it anyway */
+    }
+    void recordLinkView(tree.root_id);
+  }, [tree?.via, tree?.root_id]);
+
   const app = layout === "app";
   if (tree === undefined || (tree && !current && !failed)) {
     return failed ? <Message app={app} text="Can't reach the server. Check your connection." /> : null;
@@ -272,6 +289,7 @@ function SharedView({ pageId, layout }: { pageId: string; layout: "app" | "publi
             right={
               <>
                 {statusEl}
+                <Facepile people={presence.people} ownerView={presence.ownerView} />
                 {tree.via === "invite" && <ShareMenu pageId={current.id} invited />}
                 {tree.via === "invite" && (
                   <InvitedActions

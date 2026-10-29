@@ -14,10 +14,12 @@ import { PageMenu } from "../components/PageTree";
 import { TopBar } from "../components/TopBar";
 import { EditorBoundary } from "../components/EditorBoundary";
 import { ShareMenu } from "../components/ShareMenu";
-import { editableByOthers, useShares } from "../store/shares";
+import { editableByOthers, invitesCovering, useShares } from "../store/shares";
 import { pageLockInfo } from "../lib/share";
 import { SharedPage } from "./SharedView";
 import { useEditLock } from "../lib/useEditLock";
+import { usePresence } from "../lib/usePresence";
+import { Facepile } from "../components/Facepile";
 
 const Editor = lazy(() => import("../components/Editor").then((m) => ({ default: m.Editor })));
 
@@ -76,6 +78,8 @@ export function PageView() {
     };
   }, [pageId, lockEnabled]);
   const lock = useEditLock(pageId, null, lockEnabled, holder?.editor ?? null);
+  // Shared by invite: who else is here, and who opened it before.
+  const presence = usePresence(pageId, !local && !trashed && Boolean(page) && Boolean(invitesCovering(pages, members, pageId)));
 
 
 
@@ -99,6 +103,7 @@ export function PageView() {
         crumbs={[...ancestors, page].map((p) => ({ id: p.id, icon: p.icon, title: displayTitle(p.title) }))}
         right={
           <>
+            <Facepile people={presence.people} ownerView={presence.ownerView} />
             {!trashed && !local && <ShareMenu pageId={page.id} />}
             {!trashed && (
               <IconButton

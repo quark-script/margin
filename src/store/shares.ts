@@ -3,7 +3,8 @@ import { supabase } from "../lib/supabase";
 import { fetchSharedWithMe, leaveShared, sendInviteEmail, type IncomingShare, type InviteEmail } from "../lib/share";
 import type { Page } from "../lib/types";
 
-export type Share = { page_id: string; token: string; can_edit: boolean };
+/** views: visits through the link (nobody identified); seen by the owner. */
+export type Share = { page_id: string; token: string; can_edit: boolean; views?: number; last_viewed_at?: string | null };
 /** Someone invited to a page by email. Full access: edit, and share with others. */
 export type Member = { page_id: string; email: string; can_edit: boolean; can_share: boolean };
 export type Role = "full" | "edit" | "view";
@@ -49,7 +50,7 @@ export const useShares = create<State>((set, get) => ({
 
   async load() {
     const [links, invites] = await Promise.all([
-      supabase.from("shares").select("page_id,token,can_edit"),
+      supabase.from("shares").select("page_id,token,can_edit,views,last_viewed_at"),
       supabase.from("page_members").select("page_id,email,can_edit,can_share").order("created_at"),
     ]);
     if (!links.error) set({ shares: Object.fromEntries((links.data as Share[]).map((s) => [s.page_id, s])) });
@@ -74,7 +75,7 @@ export const useShares = create<State>((set, get) => ({
     const { data, error } = await supabase
       .from("shares")
       .upsert({ page_id: pageId }, { onConflict: "page_id", ignoreDuplicates: false })
-      .select("page_id,token,can_edit")
+      .select("page_id,token,can_edit,views,last_viewed_at")
       .single();
     if (error) throw error;
     const share = data as Share;
