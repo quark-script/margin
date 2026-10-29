@@ -1,11 +1,18 @@
 {
   "name": "margin",
   "version": "1.0.0",
+  "description": "Offline-first notes with sharing, version history and an MCP server for AI agents",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && tsc --noEmit -p api && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p api"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p api",
+    "test": "npm run test:mcp && npm run test:e2e",
+    "test:mcp": "node --no-experimental-require-module tests/mcp.mjs",
+    "test:e2e": "node tests/e2e.mjs"
   },
   "dependencies": {
     "@blocknote/core": "^0.56.0",
@@ -36,6 +43,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "esbuild": "^0.28.2",
+    "playwright": "^1.56.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
@@ -43,7 +51,5 @@
   },
   "overrides": {
     "jsdom": "26.1.0"
-  },
-  "private": true,
-  "type": "module"
+  }
 }
