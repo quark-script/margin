@@ -4,8 +4,10 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { PAGE_COLUMNS, type Block, type Page } from "../lib/types";
 import { blocksToText } from "../lib/text";
-import { deleteLocalFile, LOCAL_ID, LOCAL_PREFIX, localFile } from "../lib/local";
-import { uploadToStorage } from "../lib/media";
+import { deleteLocalFilesExcept, LOCAL_ID, LOCAL_PREFIX, localFile, rememberUpload } from "../lib/local";
+import { STORAGE_LIMIT_BYTES, storageUsed, uploadToStorage } from "../lib/media";
+import { invitesCovering, shareCovering, useShares } from "./shares";
+import { useUi } from "./ui";
 
 /**
  * Offline-first page store.
@@ -14,9 +16,12 @@ import { uploadToStorage } from "../lib/media";
  * - Changed page ids go into `dirty`; a debounced flush upserts them to Supabase.
  * - Remote changes (pull on start/focus + realtime) are applied only to pages with no pending
  *   local edits, so you never lose what you just typed. Last write wins per page.
+ * - With "Sync all pages" off, only pages shared with others go up and come down; the rest stay
+ *   dirty on this device until it's turned on. A page that isn't on the server yet goes up too
+ *   when a shared page is put inside it (the server needs it), without being shared.
  */
 
-/** "local": no account, pages stay on this device. "paused": signed in with sync turned off. */
+/** "local": no account, pages stay on this device. "paused": signed in, "Sync all pages" off. */
 export type SyncStatus = "idle" | "syncing" | "offline" | "error" | "local" | "paused";
 
 type State = {
@@ -29,13 +34,18 @@ type State = {
   revs: Record<string, number>;
   status: SyncStatus;
   lastError: string | null;
-  /** This device sends and receives changes. Off: they wait here until it's turned back on. */
+  /**
+   * "Sync all pages" on this device. Off: only pages shared with others sync (so they always see
+   * the latest); everything else stays on this device until it's turned on.
+   */
   syncOn: boolean;
 
   init: (userId: string) => Promise<void>;
   setSyncOn: (on: boolean) => void;
   /** After signing in from Margin without an account: move this device's pages into the account. */
-  adoptLocal: (uid: string) => Promise<{ pages: number; failedImages: number }>;
+  adoptLocal: (uid: string) => Promise<{ pages: number }>;
+  /** Put these pages on the server now, whatever "Sync all pages" says (to share one). */
+  uploadNow: (ids: string[]) => Promise<boolean>;
   reset: () => Promise<void>;
   sync: () => Promise<void>;
 
@@ -58,15 +68,87 @@ const keys = (uid: string) => ({
   lastSync: `notes:${uid}:lastSync`,
 });
 
-// Sync is on unless turned off for this account on this device.
-const syncOffKey = (uid: string) => `margin:sync-off:${uid}`;
-const syncSaved = (uid: string) => {
+// "Sync all pages", per account on this device.
+const syncKey = (uid: string) => `margin:sync:${uid}`;
+function syncPreference(uid: string, hadCopy: boolean) {
   try {
-    return localStorage.getItem(syncOffKey(uid)) !== "1";
+    const saved = localStorage.getItem(syncKey(uid));
+    if (saved === "all" || saved === "shared") return saved === "all";
+    // First run of this version: a device that already holds this account's pages keeps syncing
+    // everything (unless it was switched off before); a new device starts private.
+    const on = localStorage.getItem(`margin:sync-off:${uid}`) === "1" ? false : hadCopy;
+    localStorage.setItem(syncKey(uid), on ? "all" : "shared");
+    localStorage.removeItem(`margin:sync-off:${uid}`);
+    return on;
   } catch {
-    return true;
+    return hadCopy;
   }
-};
+}
+
+/** Can someone else open this page: a link, or an invite, on it or a page above it. */
+export function sharedWithOthers(pages: Record<string, Page>, id: string) {
+  const { shares, members } = useShares.getState();
+  return Boolean(shareCovering(pages, shares, id) || invitesCovering(pages, members, id));
+}
+
+// Pages to upload once whatever "Sync all pages" says (see uploadNow).
+const forced = new Set<string>();
+
+/** Addresses of the images kept on this device that these blocks show. */
+function deviceImages(blocks: Block[], out = new Set<string>()) {
+  for (const b of blocks) {
+    const url = b.props?.url;
+    if (typeof url === "string" && url.startsWith(LOCAL_PREFIX)) out.add(url);
+    if (b.children) deviceImages(b.children, out);
+  }
+  return out;
+}
+
+let toldImagesStayed = false;
+
+/** Images kept on this device go up when their page syncs; the server copy points at the upload. */
+async function withUploadedImages(blocks: Block[], uid: string): Promise<Block[]> {
+  const urls = deviceImages(blocks);
+  if (!urls.size) return blocks;
+  const uploaded = new Map<string, string>();
+  for (const url of urls) {
+    const file = await localFile(url);
+    if (!file) continue;
+    if (file.remote) {
+      uploaded.set(url, file.remote);
+      continue;
+    }
+    try {
+      const remote = await uploadToStorage(uid, file.blob, file.name);
+      await rememberUpload(url, remote);
+      uploaded.set(url, remote);
+    } catch (e) {
+      // No answer, or a server hiccup: this sync fails and it's tried again. Refused (storage full,
+      // a type the storage doesn't take): the image stays on this device, shown only here, so the
+      // page itself still syncs. It's tried again the next time the page changes.
+      const status = (e as { status?: number }).status;
+      if (status === undefined || status >= 500 || status === 408 || status === 429) throw e;
+      if (!toldImagesStayed) {
+        toldImagesStayed = true;
+        const full = await storageUsed().then((used) => used >= STORAGE_LIMIT_BYTES, () => false);
+        useUi
+          .getState()
+          .notify(
+            full
+              ? "Your storage is full (100 MB), so some images show only on this device. Settings > Storage can free up space."
+              : "Some images couldn't upload, so they show only on this device.",
+          );
+      }
+    }
+  }
+  const rewrite = (bs: Block[]): Block[] =>
+    bs.map((b) => {
+      const url = b.props?.url;
+      const to = typeof url === "string" ? uploaded.get(url) : undefined;
+      return { ...b, ...(to ? { props: { ...b.props, url: to } } : {}), ...(b.children ? { children: rewrite(b.children) } : {}) };
+    });
+  return rewrite(blocks);
+}
 
 // Local edit counter per page: a flush only clears `dirty` if nothing changed while it was in flight.
 const versions = new Map<string, number>();
@@ -77,6 +159,8 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let syncing: Promise<void> | null = null;
 let syncAgain = false;
+// A full pull was asked for (start, "Sync all pages" turned on) and hasn't run yet.
+let fullDue = false;
 let cleanupListeners: (() => void) | null = null;
 // getSession() and onAuthStateChange(INITIAL_SESSION) both call init() on startup; share one run.
 let initRun: { userId: string; promise: Promise<void> } | null = null;
@@ -108,6 +192,13 @@ export const usePages = create<State>((set, get) => {
       void get().sync();
     }, ms);
   };
+
+  // With "Sync all pages" off, sharing a page makes it sync: send its waiting edits right away,
+  // so whoever opens it sees them.
+  useShares.subscribe((now, before) => {
+    const changed = now.shares !== before.shares || now.members !== before.members;
+    if (changed && !get().syncOn && Object.keys(get().dirty).length) scheduleFlush(300);
+  });
 
   const markDirty = (ids: string[]) => {
     if (get().userId === LOCAL_ID) return; // nothing to send without an account
@@ -156,6 +247,30 @@ export const usePages = create<State>((set, get) => {
     set({ pages, dirty });
   };
 
+  // A page from the server that someone else can open (it may not be on this device yet).
+  const sharedRow = (row: Page) => {
+    const { shares, members } = useShares.getState();
+    return Boolean(shares[row.id] || members[row.id]?.length || (row.parent_id && sharedWithOthers(get().pages, row.parent_id)));
+  };
+
+  // Off: only pages others can open come in. A parent can arrive after its children, so go round
+  // until nothing more applies.
+  const applyRows = (rows: Page[]) => {
+    if (get().syncOn) return rows.forEach(applyRemote);
+    let rest = rows;
+    for (let more = true; more && rest.length; ) {
+      more = false;
+      const next: Page[] = [];
+      for (const row of rest) {
+        if (sharedRow(row)) {
+          applyRemote(row);
+          more = true;
+        } else next.push(row);
+      }
+      rest = next;
+    }
+  };
+
   const pull = async (userId: string, full: boolean) => {
     const k = keys(userId);
     const lastSync = full ? null : ((await idbGet<string>(k.lastSync)) ?? null);
@@ -170,7 +285,7 @@ export const usePages = create<State>((set, get) => {
       const { data, error } = await q.range(from, from + pageSize - 1);
       if (error) throw error;
       const rows = (data ?? []) as Page[];
-      rows.forEach(applyRemote);
+      applyRows(rows);
       for (const r of rows) if (!newest || r.updated_at > newest) newest = r.updated_at;
       if (rows.length < pageSize) break;
     }
@@ -190,7 +305,9 @@ export const usePages = create<State>((set, get) => {
         after = ids[ids.length - 1];
       }
       const { pages, dirty } = get();
-      const gone = Object.keys(pages).filter((id) => !remoteIds.has(id) && !dirty[id]);
+      const gone = Object.keys(pages).filter(
+        (id) => !remoteIds.has(id) && !dirty[id] && (get().syncOn || sharedWithOthers(pages, id)),
+      );
       if (gone.length) removeLocal(gone);
     }
     if (newest) await idbSet(k.lastSync, newest);
@@ -208,14 +325,17 @@ export const usePages = create<State>((set, get) => {
 
   const pushDirty = async () => {
     const { pages, dirty } = get();
-    const ids = Object.keys(dirty).filter((id) => pages[id]);
+    const existing = Object.keys(dirty).filter((id) => pages[id]);
     // Drop dirty markers for pages that no longer exist locally.
-    if (ids.length !== Object.keys(dirty).length) {
+    if (existing.length !== Object.keys(dirty).length) {
       const d: Record<string, true> = {};
-      ids.forEach((id) => (d[id] = true));
+      existing.forEach((id) => (d[id] = true));
       set({ dirty: d });
     }
+    // With "Sync all pages" off, the rest wait here.
+    const ids = existing.filter((id) => get().syncOn || forced.has(id) || sharedWithOthers(pages, id));
     if (!ids.length) return;
+    const pushing = new Set(ids);
 
     // Parents must exist on the server before their children (RLS + FK),
     // so upload in levels: pages whose parent isn't also pending go first.
@@ -224,7 +344,7 @@ export const usePages = create<State>((set, get) => {
       if (level.has(id)) return level.get(id)!;
       const parent = pages[id]?.parent_id;
       let l = 0;
-      if (parent && dirty[parent] && !seen.has(parent)) {
+      if (parent && pushing.has(parent) && !seen.has(parent)) {
         seen.add(id);
         l = levelOf(parent, seen) + 1;
       }
@@ -238,22 +358,24 @@ export const usePages = create<State>((set, get) => {
       const batchIds = ids.filter((id) => level.get(id) === l);
       if (!batchIds.length) continue;
       const snapshotVersions = new Map(batchIds.map((id) => [id, versions.get(id) ?? 0]));
-      const rows = batchIds.map((id) => {
-        const p = get().pages[id];
-        return {
-          id: p.id,
-          owner_id: p.owner_id,
-          parent_id: p.parent_id,
-          title: p.title,
-          icon: p.icon,
-          content: p.content,
-          search_text: p.search_text,
-          position: p.position,
-          is_favorite: p.is_favorite,
-          is_archived: p.is_archived,
-          created_at: p.created_at,
-        };
-      });
+      const rows = await Promise.all(
+        batchIds.map(async (id) => {
+          const p = get().pages[id];
+          return {
+            id: p.id,
+            owner_id: p.owner_id,
+            parent_id: p.parent_id,
+            title: p.title,
+            icon: p.icon,
+            content: await withUploadedImages(p.content ?? [], p.owner_id),
+            search_text: p.search_text,
+            position: p.position,
+            is_favorite: p.is_favorite,
+            is_archived: p.is_archived,
+            created_at: p.created_at,
+          };
+        }),
+      );
 
       const upsert = (r: typeof rows) =>
         supabase.from("pages").upsert(r, { onConflict: "id" }).select("id,updated_at,archived_at");
@@ -261,6 +383,7 @@ export const usePages = create<State>((set, get) => {
 
       // Parent was deleted elsewhere (FK) or isn't ours (RLS). One bad row fails the whole batch,
       // so retry row by row and re-home only the rows that fail at the root; they go up next sync.
+      // With "Sync all pages" off, the parent may just not be on the server yet: it goes up first.
       const orphanError = (e: { code?: string } | null) => e?.code === "23503" || e?.code === "42501";
       let orphaned = false;
       if (orphanError(error)) {
@@ -270,7 +393,8 @@ export const usePages = create<State>((set, get) => {
           const res = await upsert([row]);
           const p = get().pages[row.id];
           if (orphanError(res.error) && p?.parent_id) {
-            set({ pages: { ...get().pages, [row.id]: { ...p, parent_id: null } } });
+            if (!get().syncOn && get().pages[p.parent_id] && get().dirty[p.parent_id]) forced.add(p.parent_id);
+            else set({ pages: { ...get().pages, [row.id]: { ...p, parent_id: null } } });
             orphaned = true;
           } else if (res.error) {
             error = res.error;
@@ -289,6 +413,7 @@ export const usePages = create<State>((set, get) => {
         if (!nextPages[r.id]) continue;
         if ((versions.get(r.id) ?? 0) === snapshotVersions.get(r.id)) {
           delete nextDirty[r.id];
+          forced.delete(r.id);
           nextPages[r.id] = { ...nextPages[r.id], updated_at: r.updated_at, archived_at: r.archived_at };
         }
       }
@@ -303,6 +428,7 @@ export const usePages = create<State>((set, get) => {
     const table = { schema: "notes", table: "pages" } as const;
     const ownRows = { ...table, filter: `owner_id=eq.${userId}` };
     const onUpsert = ({ new: row }: { new: object }) => {
+      if (!get().syncOn && !sharedRow(row as Page)) return;
       applyRemote(row as Page);
       persist();
     };
@@ -314,7 +440,7 @@ export const usePages = create<State>((set, get) => {
       // Ids we don't have locally are ignored.
       .on("postgres_changes", { ...table, event: "DELETE" }, ({ old }) => {
         const id = (old as { id?: string }).id;
-        if (id && !get().dirty[id] && get().pages[id]) {
+        if (id && !get().dirty[id] && get().pages[id] && (get().syncOn || sharedWithOthers(get().pages, id))) {
           removeLocal([id, ...descendantsOf(get().pages, id)]);
           persist();
         }
@@ -357,6 +483,8 @@ export const usePages = create<State>((set, get) => {
         await delMany([k.pages, k.dirty, k.deletions, k.lastSync]);
       }
       versions.clear();
+      forced.clear();
+      fullDue = false;
       set({ userId: null, loaded: false, pages: {}, dirty: {}, deletions: {}, revs: {}, status: "idle" });
     },
 
@@ -366,61 +494,25 @@ export const usePages = create<State>((set, get) => {
       const uid = get().userId;
       if (!uid || uid === LOCAL_ID) return;
       try {
-        if (on) localStorage.removeItem(syncOffKey(uid));
-        else localStorage.setItem(syncOffKey(uid), "1");
+        localStorage.setItem(syncKey(uid), on ? "all" : "shared");
       } catch {
         /* storage blocked: the choice lasts until the app closes */
       }
       set({ syncOn: on });
-      if (on) {
-        subscribe(uid);
-        void doSync(true);
-      } else {
-        void channel?.unsubscribe();
-        channel = null;
-        set({ status: "paused" });
-      }
+      // On: everything goes up and everything comes down. Off: shared pages carry on syncing.
+      if (on) void doSync(true);
+      else if (get().status === "idle") set({ status: "paused" });
     },
 
     async adoptLocal(uid) {
       const k = keys(LOCAL_ID);
       const local = Object.values((await idbGet<Record<string, Page>>(k.pages)) ?? {});
-      if (get().userId !== uid) return { pages: 0, failedImages: 0 };
-
-      // Images kept on this device go to the account's storage. One that can't (too big, storage
-      // full) keeps its local address and still shows here.
-      const moved = new Map<string, string>();
-      let failedImages = 0;
-      const find = (bs: Block[], out: Set<string>) =>
-        bs.forEach((b) => {
-          const url = b.props?.url;
-          if (typeof url === "string" && url.startsWith(LOCAL_PREFIX)) out.add(url);
-          if (b.children) find(b.children, out);
-        });
-      const urls = new Set<string>();
-      local.forEach((p) => find(p.content ?? [], urls));
-      for (const url of urls) {
-        const file = await localFile(url);
-        if (!file) continue;
-        try {
-          moved.set(url, await uploadToStorage(uid, file.blob, file.name));
-        } catch {
-          failedImages++;
-        }
-      }
-      const rewrite = (bs: Block[]): Block[] =>
-        bs.map((b) => {
-          const url = b.props?.url;
-          const to = typeof url === "string" ? moved.get(url) : undefined;
-          return { ...b, ...(to ? { props: { ...b.props, url: to } } : {}), ...(b.children ? { children: rewrite(b.children) } : {}) };
-        });
-
-      // After the account's own pages at the top level, in their own order.
+      if (get().userId !== uid) return { pages: 0 };
+      // After the account's own pages at the top level, in their own order. They sync like any
+      // other page; their images go up when they do.
       const top = Math.max(-1, ...Object.values(get().pages).filter((p) => !p.parent_id).map((p) => p.position)) + 1;
       const adopted: Record<string, Page> = {};
-      for (const p of local) {
-        adopted[p.id] = { ...p, owner_id: uid, content: rewrite(p.content ?? []), position: p.parent_id ? p.position : top + p.position };
-      }
+      for (const p of local) adopted[p.id] = { ...p, owner_id: uid, position: p.parent_id ? p.position : top + p.position };
       if (local.length) {
         set({ pages: { ...get().pages, ...adopted } });
         markDirty(Object.keys(adopted));
@@ -428,8 +520,19 @@ export const usePages = create<State>((set, get) => {
         scheduleFlush(0);
       }
       await delMany([k.pages, k.dirty, k.deletions, k.lastSync]);
-      for (const url of moved.keys()) await deleteLocalFile(url);
-      return { pages: local.length, failedImages };
+      return { pages: local.length };
+    },
+
+    async uploadNow(ids) {
+      ids.forEach((id) => forced.add(id));
+      markDirty(ids);
+      persist();
+      const end = Date.now() + 20_000;
+      while (ids.some((id) => get().dirty[id]) && Date.now() < end) {
+        await doSync(false);
+        if (ids.some((id) => get().dirty[id])) await new Promise((r) => setTimeout(r, 300));
+      }
+      return !ids.some((id) => get().dirty[id]);
     },
 
     createPage(parentId, patch = {}) {
@@ -537,6 +640,9 @@ export const usePages = create<State>((set, get) => {
       if (newParentId && descendantsOf(pages, id).includes(newParentId)) return; // no cycles
       const siblings = Object.values(pages).filter((p) => p.parent_id === newParentId && p.id !== id);
       const position = siblings.length ? Math.max(...siblings.map((p) => p.position)) + 1 : 0;
+      // Moved out of a shared page with "Sync all pages" off: the server must hear it, or it stays
+      // shared there.
+      if (!get().syncOn && sharedWithOthers(pages, id)) forced.add(id);
       get().updatePage(id, { parent_id: newParentId, position });
     },
   };
@@ -553,7 +659,7 @@ export const usePages = create<State>((set, get) => {
       idbGet<Record<string, true>>(k.deletions),
     ]);
     const local = userId === LOCAL_ID;
-    const syncOn = !local && syncSaved(userId);
+    const syncOn = !local && syncPreference(userId, pages !== undefined);
     set({
       userId,
       loaded: true,
@@ -561,13 +667,13 @@ export const usePages = create<State>((set, get) => {
       dirty: dirty ?? {},
       deletions: deletions ?? {},
       syncOn,
-      status: local ? "local" : !syncOn ? "paused" : navigator.onLine ? "idle" : "offline",
+      status: local ? "local" : !navigator.onLine ? "offline" : syncOn ? "idle" : "paused",
     });
 
-    if (syncOn) subscribe(userId);
+    if (!local) subscribe(userId);
 
     const onOnline = () => void get().sync();
-    const onOffline = () => get().status !== "local" && get().status !== "paused" && set({ status: "offline" });
+    const onOffline = () => get().status !== "local" && set({ status: "offline" });
     // Mobile browsers may kill a hidden page without further events, so don't sit on
     // debounced writes once we're hidden.
     const onVisible = () => {
@@ -600,10 +706,10 @@ export const usePages = create<State>((set, get) => {
   }
 
   async function doSync(full: boolean): Promise<void> {
+    if (full) fullDue = true;
     const uid = get().userId;
     if (!uid) return;
     if (uid === LOCAL_ID) return void set({ status: "local" });
-    if (!get().syncOn) return void set({ status: "paused" });
     if (!navigator.onLine) {
       set({ status: "offline" });
       return;
@@ -614,12 +720,20 @@ export const usePages = create<State>((set, get) => {
     }
     set({ status: "syncing" });
     syncing = (async () => {
+      const wantFull = fullDue;
+      fullDue = false;
       try {
+        // What counts as shared decides what syncs while "Sync all pages" is off.
+        if (!get().syncOn) {
+          await useShares.getState().ensureLoaded();
+          if (!useShares.getState().loaded) throw new Error("Couldn't check which pages are shared");
+        }
         await pushDeletions();
         await pushDirty();
-        await pull(uid, full);
-        set({ status: "idle", lastError: null });
+        await pull(uid, wantFull);
+        set({ status: get().syncOn ? "idle" : "paused", lastError: null });
       } catch (e) {
+        if (wantFull) fullDue = true;
         const msg = e instanceof Error ? e.message : (e as { message?: string })?.message ?? String(e);
         console.error("[sync]", e);
         set({ status: navigator.onLine ? "error" : "offline", lastError: msg });
@@ -670,6 +784,34 @@ export function ancestorsOf(pages: Record<string, Page>, id: string): Page[] {
 export function hasPending() {
   const s = usePages.getState();
   return Object.keys(s.dirty).length > 0 || Object.keys(s.deletions).length > 0;
+}
+
+/** Images that pages here show from this device only: their page hasn't synced, or they couldn't upload. */
+export async function imagesOnlyHere() {
+  const urls = new Set<string>();
+  Object.values(usePages.getState().pages).forEach((p) => deviceImages(p.content ?? [], urls));
+  let n = 0;
+  for (const url of urls) {
+    const file = await localFile(url);
+    if (file && !file.remote) n++;
+  }
+  return n;
+}
+
+/**
+ * After signing out, deleting the account, or deleting Margin's pages without an account: remove
+ * the images kept on this device that no page left here shows (a copy kept for unsynced edits
+ * keeps its images).
+ */
+export async function pruneDeviceImages() {
+  const inUse = new Set<string>();
+  Object.values(usePages.getState().pages).forEach((p) => deviceImages(p.content ?? [], inUse));
+  for (const key of await idbKeys()) {
+    if (!/^notes:[^:]+:pages$/.test(String(key))) continue;
+    const pages = await idbGet<Record<string, Page>>(String(key));
+    Object.values(pages ?? {}).forEach((p) => deviceImages(p.content ?? [], inUse));
+  }
+  await deleteLocalFilesExcept(inUse);
 }
 
 /**

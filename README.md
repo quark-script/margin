@@ -1,6 +1,6 @@
 # Margin
 
-A minimal, offline-first notes app. Nested pages, linked notes, a block editor, search, and sync across devices. Installable as a PWA.
+A quiet notes app, private by default: your notes stay on your device and sync only if you want them to. Nested pages, linked notes, a block editor, search and sharing. Installable as a PWA.
 
 Built with React, TypeScript, BlockNote and Supabase.
 
@@ -16,8 +16,9 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Search across titles and content (`Ctrl/⌘ K`)
 - Import Markdown (an Obsidian vault as a .zip, or .md files) and export everything as Markdown
 - Copy a page as Markdown, or save it as a PDF
-- Works offline; syncs and updates live across devices. Sync can be turned off per device in Settings
-- Use it without an account: pages and images stay in the browser; signing in later moves them into the account
+- Private by default. Without an account, nothing leaves the browser. Signed in, only pages you share sync until you turn on Sync all pages (per device, in Settings); then everything syncs and updates live across devices
+- Works offline, including images, which go up when their page syncs
+- Signing in after using it without an account keeps your pages on the device; you choose what syncs
 - Light and dark themes, mobile layout
 - Settings page: name, password, theme, import and export
 - Sign in with email or Google; delete your account and all its data in Settings

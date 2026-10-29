@@ -16,7 +16,11 @@ type State = {
   members: Record<string, Member[]>;
   /** Pages other people invited this user to. */
   incoming: IncomingShare[];
+  /** Links and invites came from the server at least once. */
+  loaded: boolean;
   load: () => Promise<void>;
+  /** Load once if needed; what syncs while "Sync all pages" is off depends on it. */
+  ensureLoaded: () => Promise<void>;
   loadIncoming: () => Promise<void>;
   enable: (pageId: string) => Promise<Share>;
   setCanEdit: (pageId: string, canEdit: boolean) => Promise<void>;
@@ -41,6 +45,7 @@ export const useShares = create<State>((set, get) => ({
   shares: {},
   members: {},
   incoming: [],
+  loaded: false,
 
   async load() {
     const [links, invites] = await Promise.all([
@@ -49,7 +54,12 @@ export const useShares = create<State>((set, get) => ({
     ]);
     if (!links.error) set({ shares: Object.fromEntries((links.data as Share[]).map((s) => [s.page_id, s])) });
     if (!invites.error) set({ members: byPage(invites.data as Member[]) });
+    if (!links.error && !invites.error) set({ loaded: true });
     await get().loadIncoming();
+  },
+
+  async ensureLoaded() {
+    if (!get().loaded) await get().load().catch(() => {});
   },
 
   async loadIncoming() {
@@ -118,7 +128,7 @@ export const useShares = create<State>((set, get) => ({
     set({ incoming: get().incoming.filter((s) => s.page_id !== rootId) });
   },
 
-  reset: () => set({ shares: {}, members: {}, incoming: [] }),
+  reset: () => set({ shares: {}, members: {}, incoming: [], loaded: false }),
 }));
 
 /** The nearest share covering a page: its own, or one on an ancestor (sub-pages are included). */

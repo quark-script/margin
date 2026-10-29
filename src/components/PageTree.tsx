@@ -17,7 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
-import { childrenOf, useIsLocal, usePages } from "../store/pages";
+import { childrenOf, sharedWithOthers, useIsLocal, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { displayTitle } from "../lib/text";
 import { useShares } from "../store/shares";
@@ -109,6 +109,7 @@ export function PageMenu({ id, align = "start" }: { id: string; align?: "start" 
   const [open, setOpen] = useState(false);
   const page = usePages((s) => s.pages[id]);
   const local = useIsLocal();
+  const syncOn = usePages((s) => s.syncOn);
   const navigate = useNavigate();
   const { pageId } = useParams();
   const close = useCallback(() => setOpen(false), []);
@@ -149,7 +150,8 @@ export function PageMenu({ id, align = "start" }: { id: string; align?: "start" 
         <MenuItem icon={<CornerUpRight size={15} />} onClick={act(() => useUi.getState().setMoveId(id))}>
           Move to
         </MenuItem>
-        {!local && (
+        {/* History lives on the server: only for pages that sync. */}
+        {!local && (syncOn || sharedWithOthers(usePages.getState().pages, id)) && (
           <MenuItem icon={<History size={15} />} onClick={act(() => useUi.getState().setHistory({ pageId: id }))}>
             Version history
           </MenuItem>

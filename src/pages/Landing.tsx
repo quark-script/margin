@@ -1,15 +1,18 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../store/auth";
-import { CalendarDays, FileText, Globe, Link2, Search, Upload, WifiOff } from "lucide-react";
+import { CalendarDays, FileText, Link2, Lock, RefreshCw, Upload, WifiOff } from "lucide-react";
 
 const features = [
-  { icon: WifiOff, title: "Works offline", text: "Write anywhere. Changes sync when you're back online." },
+  { icon: Lock, title: "Private by default", text: "Your notes stay on your device. Nothing leaves it unless you sync or share it." },
+  { icon: RefreshCw, title: "Sync if you want", text: "A free account syncs your phone and computer, and lets you share pages." },
+  { icon: WifiOff, title: "Works offline", text: "Write anywhere, with or without a connection." },
   { icon: Link2, title: "Linked pages", text: "Type [[ to link a page. Backlinks show what points here." },
-  { icon: Globe, title: "Share with a link", text: "View-only or editable, sub-pages included." },
   { icon: CalendarDays, title: "Daily notes", text: "One tap opens today's page." },
   { icon: Upload, title: "Bring your notes", text: "Import from Obsidian. Export to Markdown anytime." },
-  { icon: Search, title: "Find anything", text: "Search every title and line in an instant." },
 ];
+
+/** Privacy first: writing starts on this device, with no account and no sync. */
+const startWriting = () => useAuth.getState().startWithoutAccount();
 
 const primary =
   "inline-flex h-10 items-center rounded-md bg-ink px-4 text-[15px] font-medium text-paper hover:opacity-90";
@@ -30,9 +33,9 @@ export function Landing() {
           <Link to="/login" className="inline-flex h-9 items-center rounded-md px-3 text-[14px] text-muted hover:bg-hover hover:text-ink">
             Sign in
           </Link>
-          <Link to="/signup" className="inline-flex h-9 items-center rounded-md bg-ink px-3 text-[14px] font-medium text-paper hover:opacity-90">
-            Get started
-          </Link>
+          <button onClick={startWriting} className="inline-flex h-9 items-center rounded-md bg-ink px-3 text-[14px] font-medium text-paper hover:opacity-90">
+            Start writing
+          </button>
         </nav>
       </header>
 
@@ -44,27 +47,17 @@ export function Landing() {
             for your notes.
           </h1>
           <p className="mx-auto mt-5 max-w-[480px] text-[17px] leading-relaxed text-muted">
-            Margin keeps your pages, links and daily notes in one calm space. It works offline and syncs across
-            your phone and computer.
+            Private by default. Your notes stay on your device and sync only if you want them to.
           </p>
           <div className="mt-8 flex justify-center gap-2">
-            <Link to="/signup" className={primary}>
-              Create a free account
-            </Link>
+            <button onClick={startWriting} className={primary}>
+              Start writing
+            </button>
             <Link to="/login" className={secondary}>
               Sign in
             </Link>
           </div>
-          <p className="mt-4 text-[14px] text-muted">
-            Or{" "}
-            <button
-              onClick={() => useAuth.getState().startWithoutAccount()}
-              className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-ink"
-            >
-              use it without an account
-            </button>
-            : your notes stay on this device.
-          </p>
+          <p className="mt-3 text-[13px] text-faint">Free. No account needed.</p>
         </section>
 
         <Preview />
@@ -81,11 +74,11 @@ export function Landing() {
 
         <section className="border-t border-line py-16 text-center">
           <h2 className="text-[24px] font-bold tracking-[-0.02em] text-ink">Start writing in seconds.</h2>
-          <p className="mt-2 text-[15px] text-muted">Free. Install it on your phone from the browser.</p>
+          <p className="mt-2 text-[15px] text-muted">Free and private. Install it on your phone from the browser.</p>
           <div className="mt-6">
-            <Link to="/signup" className={primary}>
-              Create a free account
-            </Link>
+            <button onClick={startWriting} className={primary}>
+              Start writing
+            </button>
           </div>
         </section>
       </main>

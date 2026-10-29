@@ -69,17 +69,17 @@ function Sync() {
   return (
     <Section title="Sync">
       <Row
-        label="Sync this device"
+        label="Sync all pages"
         hint={
           syncOn
-            ? "Your pages stay up to date with your account and your other devices."
-            : `Off: changes stay on this device until you turn it back on, and changes from your other devices don't arrive.${waiting ? ` ${waiting} change${waiting === 1 ? "" : "s"} waiting.` : ""}`
+            ? "All your pages and images sync with your account and your other devices."
+            : `Off: only pages you share sync, so people always see your latest changes. Everything else, images included, stays on this device.${waiting ? ` ${waiting} page${waiting === 1 ? "" : "s"} not synced.` : ""}`
         }
       >
         <button
           role="switch"
           aria-checked={syncOn}
-          aria-label="Sync this device"
+          aria-label="Sync all pages"
           onClick={() => setSyncOn(!syncOn)}
           className="flex items-center rounded-md p-1 hover:bg-hover"
         >
@@ -143,6 +143,7 @@ function Account() {
   const hasPassword = user?.identities ? providers.has("email") : true;
   const [photoFailed, setPhotoFailed] = useState(false);
   const email = user?.email ?? "";
+  const syncOn = usePages((s) => s.syncOn);
 
   return (
     <Section title="Account">
@@ -177,7 +178,14 @@ function Account() {
         </button>
       </Row>
       <Row label="Google" hint={providers.has("google") ? "Connected. You can sign in with Google." : "Not connected."} />
-      <Row label="Sign out" hint="Signs you out on this device. Your pages stay in your account.">
+      <Row
+        label="Sign out"
+        hint={
+          syncOn
+            ? "Signs you out on this device. Your pages stay in your account."
+            : "Signs you out on this device. Pages that haven't synced are deleted from it."
+        }
+      >
         <button className={button} onClick={() => void signOut()}>
           Sign out
         </button>

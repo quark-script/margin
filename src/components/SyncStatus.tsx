@@ -6,6 +6,7 @@ export function SyncStatus({ compact = false }: { compact?: boolean }) {
   const pending = usePages((s) => Object.keys(s.dirty).length + Object.keys(s.deletions).length);
   const lastError = usePages((s) => s.lastError);
   const sync = usePages((s) => s.sync);
+  const syncOn = usePages((s) => s.syncOn);
 
   let icon = <Check size={13} />;
   let text = "Saved";
@@ -18,12 +19,12 @@ export function SyncStatus({ compact = false }: { compact?: boolean }) {
     title = "No account: your pages are saved in this browser only";
   } else if (status === "paused") {
     icon = <PauseCircle size={13} />;
-    text = compact || !pending ? "Sync off" : `Sync off · ${pending} unsynced`;
-    title = "Sync is off for this device. Turn it on in Settings.";
+    text = "Sync off";
+    title = "Sync all pages is off on this device: only pages you share sync";
     tone = "text-muted";
   } else if (status === "offline") {
     icon = <CloudOff size={13} />;
-    text = compact ? "Offline" : pending ? `Offline · ${pending} unsynced` : "Offline";
+    text = compact || !pending || !syncOn ? "Offline" : `Offline · ${pending} unsynced`;
     title = "Changes are kept on this device and sync when you're back online";
     tone = "text-muted";
   } else if (status === "error") {

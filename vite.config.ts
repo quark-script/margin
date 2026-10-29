@@ -13,7 +13,7 @@ export default defineConfig({
       manifest: {
         name: "Margin",
         short_name: "Margin",
-        description: "Personal notes, synced everywhere.",
+        description: "Private notes. Sync only if you want.",
         theme_color: "#FBFBFA",
         background_color: "#FBFBFA",
         display: "standalone",

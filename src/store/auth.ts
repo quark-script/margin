@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import type { Session } from "@supabase/supabase-js";
 import { emailLink, recoveryInUrl, supabase } from "../lib/supabase";
-import { deleteAllLocalFiles, LOCAL_ID, localModeSaved, saveLocalMode } from "../lib/local";
-import { dropSignedOutCopies, hasPending, usePages } from "./pages";
+import { LOCAL_ID, localModeSaved, saveLocalMode } from "../lib/local";
+import { dropSignedOutCopies, hasPending, imagesOnlyHere, pruneDeviceImages, usePages } from "./pages";
 import { useShares } from "./shares";
 import { useUi } from "./ui";
 
@@ -38,7 +38,8 @@ let adopting: Promise<void> | null = null;
 
 /**
  * Signed in after using Margin without an account: the pages on this device go into the
- * account. Waits for the account's own pages to load first.
+ * account, where they sync if "Sync all pages" is on and stay on this device if it's off.
+ * Waits for the account's own pages to load first.
  */
 function adoptLocalPages(uid: string) {
   // Startup reports the session twice, and another tab (the one an email link opened) may be
@@ -51,12 +52,18 @@ function adoptLocalPages(uid: string) {
 
 async function adopt(uid: string) {
   await usePages.getState().init(uid);
-  const { pages, failedImages } = await usePages.getState().adoptLocal(uid);
+  const { pages } = await usePages.getState().adoptLocal(uid);
   saveLocalMode(false);
   useAuth.setState({ local: false });
   if (!pages) return;
-  const stayed = failedImages ? ` ${failedImages} image${failedImages === 1 ? "" : "s"} couldn't be added and stay on this device only.` : "";
-  useUi.getState().notify(`Moved ${pages} page${pages === 1 ? "" : "s"} from this device into your account.${stayed}`);
+  const n = `${pages} page${pages === 1 ? "" : "s"}`;
+  useUi
+    .getState()
+    .notify(
+      usePages.getState().syncOn
+        ? `Moved ${n} from this device into your account.`
+        : `Signed in. Your ${n} ${pages === 1 ? "stays" : "stay"} on this device; only pages you share sync.`,
+    );
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
@@ -78,7 +85,7 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   async deleteLocal() {
     if (usePages.getState().userId === LOCAL_ID) await usePages.getState().reset();
-    await deleteAllLocalFiles();
+    await pruneDeviceImages();
     saveLocalMode(false);
     set({ local: false });
   },
@@ -119,13 +126,15 @@ export const useAuth = create<AuthState>((set, get) => ({
   async signOut() {
     await usePages.getState().sync();
     // reset() wipes this device's copy, so anything not yet on the server would be gone for good.
-    if (
-      hasPending() &&
-      !window.confirm("Some changes haven't synced yet and will be lost if you sign out now. Sign out anyway?")
-    ) {
-      return false;
-    }
+    const message = usePages.getState().syncOn
+      ? "Some changes haven't synced yet and will be lost if you sign out now. Sign out anyway?"
+      : "Sync all pages is off, so pages that haven't synced exist only on this device. Signing out deletes them from it. To keep them, turn on Sync all pages in Settings first. Sign out anyway?";
+    // An image that couldn't upload exists only here even on a synced page.
+    const stuck = await imagesOnlyHere().catch(() => 0);
+    if ((hasPending() || stuck > 0) && !window.confirm(message)) return false;
     await usePages.getState().reset();
+    // Its images go too. Pages still kept here (without an account, or another account's) keep theirs.
+    await pruneDeviceImages().catch(() => {});
     useShares.getState().reset();
     await supabase.auth.signOut();
     set({ session: null, signedOut: true });
@@ -136,6 +145,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     // Leave the app first, so nothing on screen reacts to the pages disappearing.
     set({ deleted: true });
     await usePages.getState().reset();
+    await pruneDeviceImages().catch(() => {});
     useShares.getState().reset();
     // The server ended every session with the sign-in; this only clears the one stored here.
     await supabase.auth.signOut({ scope: "local" });

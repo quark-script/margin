@@ -17,6 +17,7 @@ import {
   type PageSharing,
 } from "../lib/share";
 import { displayTitle } from "../lib/text";
+import { supabase } from "../lib/supabase";
 import { MenuDivider, MenuItem, Popover } from "./Menu";
 
 const NO_MEMBERS: Member[] = [];
@@ -45,9 +46,73 @@ export function ShareMenu({ pageId, invited }: { pageId: string; invited?: boole
         Share
       </button>
       <Popover anchor={btn.current} open={open} onClose={close} align="end" width={400}>
-        {invited ? <InvitedPanel pageId={pageId} /> : <OwnerPanel pageId={pageId} />}
+        {invited ? <InvitedPanel pageId={pageId} /> : <SyncedFirst pageId={pageId} />}
       </Popover>
     </>
+  );
+}
+
+/**
+ * With "Sync all pages" off, a page may exist only on this device. Sharing needs it on the
+ * server, and the pages it's inside too (without sharing them), so that comes first.
+ */
+function SyncedFirst({ pageId }: { pageId: string }) {
+  const syncOn = usePages((s) => s.syncOn);
+  const pages = usePages((s) => s.pages);
+  const [missing, setMissing] = useState<string[] | null>(syncOn ? [] : null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (syncOn) return setMissing([]);
+    const chain = [...ancestorsOf(usePages.getState().pages, pageId).map((p) => p.id), pageId];
+    let alive = true;
+    void supabase
+      .from("pages")
+      .select("id")
+      .in("id", chain)
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) return setError(navigator.onLine ? "Couldn't check this page. Try again." : "Sharing needs a connection.");
+        const there = new Set((data ?? []).map((r) => (r as { id: string }).id));
+        setMissing(chain.filter((id) => !there.has(id)));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [pageId, syncOn]);
+
+  if (missing?.length === 0) return <OwnerPanel pageId={pageId} />;
+  if (!missing) return <p className="p-4 text-[13px] text-muted">{error ?? "Loading…"}</p>;
+
+  const above = missing.filter((id) => id !== pageId).map((id) => displayTitle(pages[id]?.title));
+  const syncIt = async () => {
+    setBusy(true);
+    setError(null);
+    const ok = await usePages.getState().uploadNow(missing);
+    setBusy(false);
+    if (ok) setMissing([]);
+    else setError(navigator.onLine ? "Couldn't sync it. Try again." : "Sharing needs a connection.");
+  };
+  return (
+    <div className="p-4 text-[14px]">
+      <p className="text-ink">This page is only on this device.</p>
+      <p className="mt-1 text-[13px] text-muted">
+        To share it, it has to sync to your account
+        {above.length
+          ? `, and so ${above.length === 1 ? "does the page" : "do the pages"} it's inside (${above.join(", ")}), without being shared`
+          : ""}
+        . Shared pages keep syncing so people always see your latest changes.
+      </p>
+      {error && <p className="mt-2 text-[13px] text-danger">{error}</p>}
+      <button
+        onClick={() => void syncIt()}
+        disabled={busy}
+        className="mt-3 h-9 rounded-md bg-ink px-3.5 text-[14px] font-medium text-paper hover:opacity-90 disabled:opacity-40"
+      >
+        {busy ? "Syncing…" : "Sync and share"}
+      </button>
+    </div>
   );
 }
 

@@ -319,20 +319,23 @@ export async function importFiles(files: File[]): Promise<ImportResult> {
 
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user.id;
-  const local = usePages.getState().userId === LOCAL_ID;
+  // Kept on this device without an account, offline, or with "Sync all pages" off; it goes up
+  // when its page syncs.
+  const { userId, syncOn } = usePages.getState();
+  const onDevice = userId === LOCAL_ID || !syncOn || !navigator.onLine;
   const uploaded = new Map<string, string>();
   const missingImages: string[] = [];
   const upload = async (ref: string): Promise<string | null> => {
     const path = images.has(ref) ? ref : imageByName.get(baseName(ref).toLowerCase());
-    if (!path || (!uid && !local)) return null;
+    if (!path || (!uid && !onDevice)) return null;
     if (uploaded.has(path)) return uploaded.get(path)!;
     const ext = path.split(".").pop()!.toLowerCase();
     const type = ext === "svg" ? "image/svg+xml" : `image/${ext === "jpg" ? "jpeg" : ext}`;
     const blob = new Blob([images.get(path)! as BlobPart], { type });
-    // Without an account the image stays on this device, with the same size limit.
+    // Same size limit on this device, so it still fits once its page syncs.
     if (blob.size > MAX_FILE_BYTES) return null;
     try {
-      const url = local ? await saveLocalFile(blob, baseName(path)) : await uploadToStorage(uid!, blob, baseName(path));
+      const url = onDevice ? await saveLocalFile(blob, baseName(path)) : await uploadToStorage(uid!, blob, baseName(path));
       uploaded.set(path, url);
       return url;
     } catch {

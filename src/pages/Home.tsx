@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FileText, Plus, Search } from "lucide-react";
-import { isTrashed, usePages } from "../store/pages";
+import { isTrashed, useIsLocal, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { useAuth } from "../store/auth";
 import { displayTitle, timeAgo } from "../lib/text";
@@ -64,6 +64,8 @@ export function Home() {
             </button>
           </div>
 
+          <SyncHint />
+
           <h2 className="mt-12 mb-2 text-[13px] font-medium text-muted">Recently edited</h2>
           {loaded && recent.length === 0 ? (
             <p className="text-[15px] text-muted">
@@ -85,6 +87,52 @@ export function Home() {
             </ul>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+const HINT_KEY = "margin:sync-hint-dismissed";
+
+/**
+ * Signed in with "Sync all pages" off (the default on a new device): say why pages from other
+ * devices aren't here, once.
+ */
+function SyncHint() {
+  const local = useIsLocal();
+  const syncOn = usePages((s) => s.syncOn);
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(HINT_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  if (local || syncOn || dismissed) return null;
+  const dismiss = () => {
+    setDismissed(true);
+    try {
+      localStorage.setItem(HINT_KEY, "1");
+    } catch {
+      /* shows again next time */
+    }
+  };
+  return (
+    <div className="mt-8 rounded-lg px-4 py-3 ring-1 ring-line ring-inset" role="note">
+      <p className="text-[14px] text-ink">Your pages stay on this device</p>
+      <p className="mt-0.5 text-[13px] text-muted">
+        Only pages you share sync. To have all your pages on every device, sync them all.
+      </p>
+      <div className="mt-2.5 flex gap-2">
+        <button
+          onClick={() => usePages.getState().setSyncOn(true)}
+          className="h-8 rounded-md bg-ink px-3 text-[13px] font-medium text-paper hover:opacity-90"
+        >
+          Sync all pages
+        </button>
+        <button onClick={dismiss} className="h-8 rounded-md px-3 text-[13px] text-muted hover:bg-hover hover:text-ink">
+          Keep them here
+        </button>
       </div>
     </div>
   );

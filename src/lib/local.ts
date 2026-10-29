@@ -1,8 +1,9 @@
-import { del as idbDel, delMany, get as idbGet, keys as idbKeys, set as idbSet } from "idb-keyval";
+import { delMany, get as idbGet, keys as idbKeys, set as idbSet } from "idb-keyval";
 
 /**
  * Using Margin without an account: the page store runs as user "local", and images are kept in
- * IndexedDB too. Nothing is sent anywhere. Signing in later moves it all into the account.
+ * IndexedDB too. Nothing is sent anywhere. Signed in, images of pages that don't sync stay here
+ * the same way, and go up to the account's storage once their page syncs.
  */
 export const LOCAL_ID = "local";
 export const LOCAL_PREFIX = "local-media:";
@@ -26,7 +27,8 @@ export function saveLocalMode(on: boolean) {
   }
 }
 
-type Stored = { blob: Blob; name: string };
+/** `remote`: where it was uploaded, once its page synced. */
+type Stored = { blob: Blob; name: string; remote?: string };
 const idOf = (url: string) => url.slice(LOCAL_PREFIX.length);
 
 /** Keep a file on this device; returns the address pages store for it. */
@@ -52,11 +54,23 @@ export async function localFileUrl(url: string) {
   return objectUrl;
 }
 
-export const deleteLocalFile = (url: string) => idbDel(FILE_KEY + idOf(url));
+/** After uploading: later syncs of pages showing this file use the uploaded copy. */
+export async function rememberUpload(url: string, remote: string) {
+  const file = await localFile(url);
+  if (file) await idbSet(FILE_KEY + idOf(url), { ...file, remote } satisfies Stored);
+}
 
-export async function deleteAllLocalFiles() {
-  const all = (await idbKeys()).filter((k) => String(k).startsWith(FILE_KEY));
-  await delMany(all);
-  objectUrls.forEach((u) => URL.revokeObjectURL(u));
-  objectUrls.clear();
+/** Delete the files kept on this device, except these addresses. */
+export async function deleteLocalFilesExcept(keep: Set<string>) {
+  const ids = (await idbKeys())
+    .map((k) => String(k))
+    .filter((k) => k.startsWith(FILE_KEY))
+    .map((k) => k.slice(FILE_KEY.length))
+    .filter((id) => !keep.has(LOCAL_PREFIX + id));
+  await delMany(ids.map((id) => FILE_KEY + id));
+  for (const id of ids) {
+    const objectUrl = objectUrls.get(id);
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrls.delete(id);
+  }
 }

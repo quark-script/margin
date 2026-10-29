@@ -15,7 +15,7 @@ import { supabase } from "../lib/supabase";
 import { FILE_TYPES, formatBytes, MAX_FILE_BYTES, resolveFileUrl, STORAGE_LIMIT_BYTES, storageUsed, uploadToStorage } from "../lib/media";
 import { LOCAL_ID, saveLocalFile } from "../lib/local";
 import type { Block } from "../lib/types";
-import { isTrashed, usePages } from "../store/pages";
+import { isTrashed, sharedWithOthers, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { displayTitle } from "../lib/text";
 import { pageLinkSpec } from "./PageLink";
@@ -135,21 +135,23 @@ function refuse(message: string): never {
 // the editor swaps it for a fresh empty one that can be clicked to try again.
 const failedUploads = new Set<string>();
 
-async function uploadFile(file: File, blockId?: string) {
+async function uploadFile(file: File, pageId: string, blockId?: string) {
   try {
-    return await upload(file);
+    return await upload(file, pageId);
   } catch (err) {
     if (blockId) failedUploads.add(blockId);
     throw err;
   }
 }
 
-async function upload(file: File) {
-  // Same limits without an account, so everything still fits once it moves into one.
+async function upload(file: File, pageId: string) {
+  // Same limits for files kept on this device, so they still fit once their page syncs.
   if (file.size > MAX_FILE_BYTES) refuse(`This file is ${formatBytes(file.size)}. Files can be up to 10 MB.`);
   if (file.type && !FILE_TYPES.includes(file.type)) refuse("Margin can store images (PNG, JPEG, WebP, GIF, SVG) and PDFs.");
-  if (usePages.getState().userId === LOCAL_ID) return saveLocalFile(file, file.name);
-  if (!navigator.onLine) refuse("You're offline. Images can be added once you're back online.");
+  // Kept on this device without an account, offline, or on a page that doesn't sync ("Sync all
+  // pages" off and not shared). It goes up when its page syncs.
+  const { userId, syncOn, pages } = usePages.getState();
+  if (userId === LOCAL_ID || !navigator.onLine || (!syncOn && !sharedWithOthers(pages, pageId))) return saveLocalFile(file, file.name);
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user.id;
   if (!uid) refuse("Sign in again to add files.");
@@ -196,7 +198,7 @@ export function Editor({
     {
       schema,
       initialContent: initialContent.length ? (toKnownContent(initialContent) as unknown as PartialBlock<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>[]) : undefined,
-      uploadFile: files ? files.upload : uploadFile,
+      uploadFile: files ? files.upload : (file: File, blockId?: string) => uploadFile(file, pageId, blockId),
       resolveFileUrl: files ? files.resolve : resolveFileUrl,
       animations: false,
       dictionary,

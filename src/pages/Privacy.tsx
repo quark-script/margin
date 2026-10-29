@@ -20,15 +20,16 @@ export function Privacy() {
 
         <p className="mt-6">
           Margin is a notes app made by Vipul Chaudhary. This page explains what it collects, why, and what you can do about
-          it. In short: your notes are yours, they are private unless you share them, and nothing is sold or used for ads.
+          it. In short: your notes are yours. Without an account they never leave your device; signed in, only what you
+          share or choose to sync does. Nothing is sold or used for ads.
         </p>
 
         <Section title="Without an account">
           <p>
             You can use Margin without an account. Your pages and images are then saved only in your browser, on that
             device: none of it is sent to Margin's servers, and nobody else can see it. Clearing your browser's data
-            deletes it, and Settings can delete it all. If you create an account or sign in later, your pages and images
-            move into your account, and the rest of this policy applies to them.
+            deletes it, and Settings can delete it all. If you create an account or sign in later, your pages join your
+            account, and the rest of this policy applies to what syncs.
           </p>
         </Section>
 
@@ -91,8 +92,9 @@ export function Privacy() {
           <p>
             So that it works offline, Margin keeps a copy of your notes in your browser's storage. Signing out or deleting your
             account removes it from that device. Your other devices remove their copy within about an hour of being online,
-            unless they hold edits that never synced. If you turn off Sync for a device in Settings, changes made there stay
-            on that device until you turn it back on.
+            unless they hold edits that never synced. With Sync all pages off for a device (the default when you sign in
+            on a new device), only pages you share leave it, plus any page they sit inside, which is stored in your account
+            but not shared. Your other pages and their images stay on that device until you turn it on.
           </p>
         </Section>
 
