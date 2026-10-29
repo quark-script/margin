@@ -147,6 +147,7 @@ function AgentApps() {
   const [lastUsed, setLastUsed] = useState<Record<string, string>>({});
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const syncOn = usePages((s) => s.syncOn);
 
   const load = useCallback(async () => {
     const [g, a] = await Promise.all([supabase.auth.oauth.listGrants(), supabase.rpc("my_agent_activity")]);
@@ -198,6 +199,16 @@ function AgentApps() {
           </button>
         </Row>
       ))}
+      {!syncOn && Boolean(grants?.length) && (
+        <Row
+          label="Sync all pages is off on this device"
+          hint="So your AI apps reach only the pages you share, and pages they write don't show up here."
+        >
+          <button className={button} onClick={() => usePages.getState().setSyncOn(true)}>
+            Sync all pages
+          </button>
+        </Row>
+      )}
     </Section>
   );
 }

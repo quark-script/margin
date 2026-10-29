@@ -16,6 +16,7 @@ import { EditorBoundary } from "../components/EditorBoundary";
 import { ShareMenu } from "../components/ShareMenu";
 import { editableByOthers, invitesCovering, useShares } from "../store/shares";
 import { pageLockInfo } from "../lib/share";
+import { supabase } from "../lib/supabase";
 import { SharedPage } from "./SharedView";
 import { useEditLock } from "../lib/useEditLock";
 import { usePresence } from "../lib/usePresence";
@@ -28,6 +29,7 @@ export function PageView() {
   const page = usePages((s) => s.pages[pageId]);
   const loaded = usePages((s) => s.loaded);
   const status = usePages((s) => s.status);
+  const syncOn = usePages((s) => s.syncOn);
   const rev = usePages((s) => s.revs[pageId] ?? 0);
   const trashed = usePages((s) => isTrashed(s.pages, pageId));
   const local = useIsLocal();
@@ -91,9 +93,11 @@ export function PageView() {
 
   if (!loaded) return <PageSkeleton />;
 
-  // Not one of ours: someone may have shared it (invited us, or anyone with the link).
+  // Not on this device: one of ours that it doesn't sync, or someone else's shared with us (an
+  // invite, or anyone with the link).
   if (!page) {
     if (status === "syncing") return <PageSkeleton />;
+    if (!syncOn && !local) return <NotSyncedHere pageId={pageId} />;
     return <SharedPage pageId={pageId} />;
   }
 
@@ -352,6 +356,48 @@ function TrashedBanner({ pageId, archivedSelf }: { pageId: string; archivedSelf:
           </button>
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * With "Sync all pages" off, one of your own pages can be in your account without being on this
+ * device: an AI app wrote it, or another device synced it. Say so, instead of "no access".
+ */
+function NotSyncedHere({ pageId }: { pageId: string }) {
+  const [own, setOwn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setOwn(null);
+    void supabase
+      .from("pages")
+      .select("id")
+      .eq("id", pageId)
+      .maybeSingle()
+      .then(({ data }) => alive && setOwn(Boolean(data)));
+    return () => {
+      alive = false;
+    };
+  }, [pageId]);
+
+  if (own === null) return <PageSkeleton />;
+  if (!own) return <SharedPage pageId={pageId} />;
+  return (
+    <div className="flex h-full flex-col">
+      <TopBar crumbs={null} />
+      <main className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+        <p className="max-w-[420px] text-[15px] text-ink">This page is in your account, but not on this device</p>
+        <p className="max-w-[420px] text-[14px] text-muted">
+          Sync all pages is off here, so only pages you share show up. Turn it on to have all your pages here, including the
+          ones your AI apps write.
+        </p>
+        <button
+          onClick={() => usePages.getState().setSyncOn(true)}
+          className="mt-2 h-9 rounded-md bg-ink px-3.5 text-[14px] font-medium text-paper hover:opacity-90"
+        >
+          Sync all pages
+        </button>
+      </main>
     </div>
   );
 }

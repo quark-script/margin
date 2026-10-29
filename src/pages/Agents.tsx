@@ -228,8 +228,9 @@ export function Agents() {
         <Section title="What it can see">
           <ul className="list-disc space-y-1.5 pl-5">
             <li>
-              The pages in your Margin account. On a device with <B>Sync all pages</B> off, pages that exist only there stay
-              out of reach. To give an agent all your pages, turn Sync all pages on in Settings, on the device that has them.
+              The pages in your Margin account. A device with <B>Sync all pages</B> off keeps the pages you haven't shared to
+              itself: the app can't reach them, and pages the app writes don't show up there. Margin offers to turn it on when
+              you connect, and you can turn it on in Settings on each device.
             </li>
             <li>Not pages other people shared with you.</li>
             <li>

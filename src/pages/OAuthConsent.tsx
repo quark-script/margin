@@ -5,6 +5,7 @@ import type { OAuthAuthorizationDetails } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { rememberNext } from "../lib/next";
 import { useAuth } from "../store/auth";
+import { hasPending, usePages } from "../store/pages";
 import { Shell } from "./Login";
 
 const primary = "h-10 w-full rounded-md bg-ink text-[15px] font-medium text-paper hover:opacity-90 disabled:opacity-50";
@@ -66,9 +67,17 @@ function SignInFirst({ here, local }: { here: string; local: boolean }) {
 
 function Decide({ id, email }: { id: string; email: string }) {
   const [details, setDetails] = useState<OAuthAuthorizationDetails | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "working" | "leaving" | "failed">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "syncing" | "working" | "leaving" | "failed">("loading");
   const [error, setError] = useState(EXPIRED);
   const [logoFailed, setLogoFailed] = useState(false);
+  // "Sync all pages" off on this device: the app would reach only shared pages, and pages it writes
+  // wouldn't show here. Offer to turn it on; asked once, so the choice stays put while it syncs.
+  const syncOff = usePages((s) => s.loaded && !s.syncOn);
+  const [askSync, setAskSync] = useState(false);
+  const [syncAll, setSyncAll] = useState(true);
+  useEffect(() => {
+    if (syncOff) setAskSync(true);
+  }, [syncOff]);
 
   useEffect(() => {
     let alive = true;
@@ -90,6 +99,18 @@ function Decide({ id, email }: { id: string; email: string }) {
   }, [id]);
 
   const decide = async (allow: boolean) => {
+    if (allow && askSync && syncAll && !usePages.getState().syncOn) {
+      setState("syncing");
+      usePages.getState().setSyncOn(true);
+      // This device's pages go into the account before the app looks for them. Whatever is still
+      // uploading after half a minute (big images, a slow connection) finishes when Margin next opens here.
+      // A sync already running when it was switched on doesn't take them, so allow another round.
+      const until = Date.now() + 30_000;
+      for (let round = 0; round < 3 && Date.now() < until; round++) {
+        await Promise.race([usePages.getState().sync(), new Promise((r) => setTimeout(r, until - Date.now()))]);
+        if (!hasPending() || ["error", "offline"].includes(usePages.getState().status)) break;
+      }
+    }
     setState("working");
     const opts = { skipBrowserRedirect: true };
     const { data, error } = allow
@@ -120,6 +141,7 @@ function Decide({ id, email }: { id: string; email: string }) {
 
   const back = returnTo(details!.redirect_uri);
   const logo = details!.client.logo_uri && !logoFailed ? details!.client.logo_uri : null;
+  const busy = state === "syncing" || state === "working";
   return (
     <Shell title={`Connect ${name} to Margin`} subtitle={`${name} wants to use your Margin account, ${email}.`}>
       <div className="mt-6 flex items-center gap-3">
@@ -147,16 +169,35 @@ function Decide({ id, email }: { id: string; email: string }) {
           </li>
         </ul>
         <p className="mt-3 text-[12px] leading-relaxed text-muted">
-          Its changes show in each page's version history, marked with its name. What it reads goes to the company behind it.
-          It reaches the pages in your account: on a device with Sync all pages off, pages kept only there stay out of reach.
+          It reaches the pages in your Margin account. Its changes show in each page's version history, marked with its name.
+          What it reads goes to the company behind it.
         </p>
       </div>
 
+      {askSync && (
+        <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg px-4 py-3 ring-1 ring-line ring-inset">
+          <input
+            type="checkbox"
+            checked={syncAll}
+            disabled={busy}
+            onChange={(e) => setSyncAll(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-ink"
+          />
+          <span className="min-w-0">
+            <span className="block text-[14px] text-ink">Also sync all pages on this device</span>
+            <span className="mt-0.5 block text-[12px] leading-relaxed text-muted">
+              Sync all pages is off here, so {name} would only reach pages you share, and pages it writes wouldn't show up
+              here.
+            </span>
+          </span>
+        </label>
+      )}
+
       <div className="mt-6 flex flex-col gap-2">
-        <button className={primary} disabled={state === "working"} onClick={() => void decide(true)}>
-          {state === "working" ? "Connecting…" : "Allow"}
+        <button className={primary} disabled={busy} onClick={() => void decide(true)}>
+          {state === "syncing" ? "Syncing your pages…" : state === "working" ? "Connecting…" : "Allow"}
         </button>
-        <button className={secondary} disabled={state === "working"} onClick={() => void decide(false)}>
+        <button className={secondary} disabled={busy} onClick={() => void decide(false)}>
           Cancel
         </button>
       </div>

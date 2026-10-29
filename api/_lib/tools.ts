@@ -11,8 +11,8 @@ export type Context = { store: Store; origin: string };
 export const INSTRUCTIONS = `Margin is the user's notes app. Pages can sit inside other pages, and their content is Markdown here.
 Find pages with search_pages, recent_pages or list_pages, then read one with read_page. Write with create_page, append_to_page, update_page or daily_note.
 Refer to a page by its id or its Margin link. In content, link to another page by writing [[Page title]].
-Changes appear in the user's Margin app right away and in the page's version history, marked with this app's name.
-Only pages in the user's account are reachable. A device with "Sync all pages" off keeps its other pages to itself.`;
+Changes are saved to the user's Margin account at once and show in the page's version history, marked with this app's name.
+Only pages in the user's account are reachable. A device with "Sync all pages" off keeps its unshared pages to itself and doesn't show the pages you write; if the user can't find one in Margin, they can turn on Sync all pages in Settings on that device.`;
 
 /** A problem to tell the agent about, in words it can act on. */
 class ToolError extends Error {}
