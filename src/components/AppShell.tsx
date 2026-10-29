@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { usePages } from "../store/pages";
 import { useUi } from "../store/ui";
+import { useAuth } from "../store/auth";
 import { Sidebar } from "./Sidebar";
 import { MovePicker, QuickSwitcher } from "./QuickSwitcher";
 import { TrashPanel } from "./TrashPanel";
@@ -12,6 +13,7 @@ export function AppShell() {
   const { sidebarOpen, sidebarCollapsed, setSidebarOpen, toggleCollapsed, setSwitcherOpen } = useUi();
   const navigate = useNavigate();
   const historyOpen = useUi((s) => s.history !== null);
+  const local = useAuth((s) => s.local && !s.session);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -38,17 +40,24 @@ export function AppShell() {
   }, [sidebarOpen]);
 
   return (
-    <div className="flex h-full">
-      {/* Desktop sidebar */}
-      <aside
-        className={`hidden shrink-0 border-r border-line transition-[width] duration-200 md:block ${
-          sidebarCollapsed ? "w-0 overflow-hidden border-r-0" : "w-[248px]"
-        }`}
-      >
-        <div className="h-full w-[248px]">
-          <Sidebar onCollapse={toggleCollapsed} />
-        </div>
-      </aside>
+    <div className="flex h-full flex-col">
+      {local && <DeviceOnlyStrip />}
+      <div className={`flex min-h-0 flex-1 ${local ? "under-strip" : ""}`}>
+        {/* Desktop sidebar */}
+        <aside
+          className={`hidden shrink-0 border-r border-line transition-[width] duration-200 md:block ${
+            sidebarCollapsed ? "w-0 overflow-hidden border-r-0" : "w-[248px]"
+          }`}
+        >
+          <div className="h-full w-[248px]">
+            <Sidebar onCollapse={toggleCollapsed} />
+          </div>
+        </aside>
+
+        <main className="min-w-0 flex-1">
+          <Outlet />
+        </main>
+      </div>
 
       {/* Mobile drawer */}
       <div
@@ -70,10 +79,6 @@ export function AppShell() {
         </div>
       </div>
 
-      <main className="min-w-0 flex-1">
-        <Outlet />
-      </main>
-
       <QuickSwitcher />
       <MovePicker />
       <TrashPanel />
@@ -83,6 +88,34 @@ export function AppShell() {
         </Suspense>
       )}
       <Notice />
+    </div>
+  );
+}
+
+/** Without an account: where the pages are, and how to keep them. Always shown. */
+function DeviceOnlyStrip() {
+  const link = "font-medium text-ink underline decoration-faint underline-offset-2 hover:decoration-ink";
+  return (
+    <div role="note" className="safe-top shrink-0 border-b border-line bg-side">
+      <p className="px-4 py-2 text-center text-[13px] leading-snug text-muted">
+        <span className="sm:hidden">
+          Saved on this device only.{" "}
+          <Link to="/signup" className={link}>
+            Back up and sync
+          </Link>
+        </span>
+        <span className="max-sm:hidden">
+          Your pages are saved on this device only. To sync across devices and keep a backup,{" "}
+          <Link to="/signup" className={link}>
+            create an account
+          </Link>{" "}
+          or{" "}
+          <Link to="/login" className={link}>
+            sign in
+          </Link>
+          .
+        </span>
+      </p>
     </div>
   );
 }

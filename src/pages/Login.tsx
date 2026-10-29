@@ -187,7 +187,7 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
   return (
     <Shell title={title} subtitle={subtitle}>
       {local && (mode === "signin" || mode === "signup") && (
-        <p className="mt-4 rounded-md bg-hover px-3 py-2 text-[13px] text-ink">Your pages stay on this device unless you share them or sync all pages.</p>
+        <p className="mt-4 rounded-md bg-hover px-3 py-2 text-[13px] text-ink">The pages on this device will sync to your account, so they're backed up.</p>
       )}
       {withGoogle && (
         <>

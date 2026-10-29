@@ -38,8 +38,8 @@ let adopting: Promise<void> | null = null;
 
 /**
  * Signed in after using Margin without an account: the pages on this device go into the
- * account, where they sync if "Sync all pages" is on and stay on this device if it's off.
- * Waits for the account's own pages to load first.
+ * account, and "Sync all pages" turns on for this device, since backing them up and syncing
+ * is why you sign in from there. Waits for the account's own pages to load first.
  */
 function adoptLocalPages(uid: string) {
   // Startup reports the session twice, and another tab (the one an email link opened) may be
@@ -53,17 +53,11 @@ function adoptLocalPages(uid: string) {
 async function adopt(uid: string) {
   await usePages.getState().init(uid);
   const { pages } = await usePages.getState().adoptLocal(uid);
+  if (usePages.getState().userId === uid) usePages.getState().setSyncOn(true);
   saveLocalMode(false);
   useAuth.setState({ local: false });
   if (!pages) return;
-  const n = `${pages} page${pages === 1 ? "" : "s"}`;
-  useUi
-    .getState()
-    .notify(
-      usePages.getState().syncOn
-        ? `Moved ${n} from this device into your account.`
-        : `Signed in. Your ${n} ${pages === 1 ? "stays" : "stay"} on this device; only pages you share sync.`,
-    );
+  useUi.getState().notify(`${pages} page${pages === 1 ? "" : "s"} from this device now sync${pages === 1 ? "s" : ""} with your account.`);
 }
 
 export const useAuth = create<AuthState>((set, get) => ({

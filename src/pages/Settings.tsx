@@ -50,7 +50,7 @@ function ThisDevice() {
         label="On this device"
         hint="You're using Margin without an account. Your pages are saved in this browser only: other devices can't see them, and clearing this browser's data deletes them."
       />
-      <Row label="Sync across devices" hint="Create an account or sign in: the pages on this device move into it.">
+      <Row label="Sync across devices" hint="Create an account or sign in: the pages on this device go into it and sync, so they're backed up.">
         <button className={button} onClick={() => navigate("/login")}>
           Sign in
         </button>

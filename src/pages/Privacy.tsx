@@ -28,8 +28,8 @@ export function Privacy() {
           <p>
             You can use Margin without an account. Your pages and images are then saved only in your browser, on that
             device: none of it is sent to Margin's servers, and nobody else can see it. Clearing your browser's data
-            deletes it, and Settings can delete it all. If you create an account or sign in later, your pages join your
-            account, and the rest of this policy applies to what syncs.
+            deletes it, and Settings can delete it all. If you create an account or sign in later, your pages go into your
+            account and sync, and the rest of this policy applies to them.
           </p>
         </Section>
 
@@ -92,9 +92,10 @@ export function Privacy() {
           <p>
             So that it works offline, Margin keeps a copy of your notes in your browser's storage. Signing out or deleting your
             account removes it from that device. Your other devices remove their copy within about an hour of being online,
-            unless they hold edits that never synced. With Sync all pages off for a device (the default when you sign in
-            on a new device), only pages you share leave it, plus any page they sit inside, which is stored in your account
-            but not shared. Your other pages and their images stay on that device until you turn it on.
+            unless they hold edits that never synced. Signing in on a new device starts with Sync all pages off: only pages
+            you share leave it, plus any page they sit inside, which is stored in your account but not shared. Your other
+            pages and their images stay on that device until you turn it on. Signing in after using Margin there without an
+            account turns it on, so those pages are backed up.
           </p>
         </Section>
 
