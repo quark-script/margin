@@ -116,10 +116,10 @@ export function Privacy() {
           <p>
             So that it works offline, Margin keeps a copy of your notes in your browser's storage. Signing out or deleting your
             account removes it from that device. Your other devices remove their copy within about an hour of being online,
-            unless they hold edits that never synced. Signing in on a new device starts with Sync all pages off: only pages
-            you share leave it, plus any page they sit inside, which is stored in your account but not shared. Your other
-            pages and their images stay on that device until you turn it on. Signing in after using Margin there without an
-            account turns it on, so those pages are backed up.
+            unless they hold edits that never synced. Signed in, your pages and their images sync with your account, so
+            they're on all your devices and backed up. You can turn Sync all pages off for a device in Settings: then only
+            pages you share leave it, plus any page they sit inside, which is stored in your account but not shared, and
+            your other pages and their images stay on that device.
           </p>
         </Section>
 

@@ -95,8 +95,8 @@ export function Home() {
 const HINT_KEY = "margin:sync-hint-dismissed";
 
 /**
- * Signed in with "Sync all pages" off (the default on a new device): say why pages from other
- * devices aren't here, once.
+ * Signed in with "Sync all pages" switched off on this device: say why pages from other devices
+ * aren't here, once.
  */
 function SyncHint() {
   const local = useIsLocal();

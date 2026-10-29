@@ -68,20 +68,21 @@ const keys = (uid: string) => ({
   lastSync: `notes:${uid}:lastSync`,
 });
 
-// "Sync all pages", per account on this device.
+// "Sync all pages", per account on this device: on, unless it was switched off here.
 const syncKey = (uid: string) => `margin:sync:${uid}`;
-function syncPreference(uid: string, hadCopy: boolean) {
+function syncPreference(uid: string) {
   try {
     const saved = localStorage.getItem(syncKey(uid));
     if (saved === "all" || saved === "shared") return saved === "all";
-    // First run of this version: a device that already holds this account's pages keeps syncing
-    // everything (unless it was switched off before); a new device starts private.
-    const on = localStorage.getItem(`margin:sync-off:${uid}`) === "1" ? false : hadCopy;
-    localStorage.setItem(syncKey(uid), on ? "all" : "shared");
-    localStorage.removeItem(`margin:sync-off:${uid}`);
-    return on;
+    // Switched off in an earlier version: carry that over.
+    if (localStorage.getItem(`margin:sync-off:${uid}`) === "1") {
+      localStorage.setItem(syncKey(uid), "shared");
+      localStorage.removeItem(`margin:sync-off:${uid}`);
+      return false;
+    }
+    return true;
   } catch {
-    return hadCopy;
+    return true;
   }
 }
 
@@ -659,7 +660,7 @@ export const usePages = create<State>((set, get) => {
       idbGet<Record<string, true>>(k.deletions),
     ]);
     const local = userId === LOCAL_ID;
-    const syncOn = !local && syncPreference(userId, pages !== undefined);
+    const syncOn = !local && syncPreference(userId);
     set({
       userId,
       loaded: true,
