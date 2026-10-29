@@ -1,5 +1,10 @@
 # Margin
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+  <img alt="Margin: a page with to-dos, a table and links to other pages, next to the sidebar of nested pages" src="docs/screenshot.png">
+</picture>
+
 A quiet notes app that works offline. Nested pages, linked notes, a block editor, sharing and
 version history. Use it without an account and nothing leaves your browser; sign in to sync
 across devices. AI apps such as Claude and ChatGPT can search, read and write your notes through

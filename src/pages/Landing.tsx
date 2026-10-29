@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../store/auth";
-import { Bot, CalendarDays, FileText, Link2, Lock, RefreshCw, Upload, WifiOff } from "lucide-react";
+import { ArrowRight, Bot, CalendarDays, FileText, Link2, Lock, RefreshCw, Upload, WifiOff } from "lucide-react";
+
+const GITHUB = "https://github.com/quark-script/margin";
 
 const features = [
   { icon: Lock, title: "Private by default", text: "Your notes stay on your device. Nothing leaves it unless you sync or share it." },
@@ -30,6 +32,14 @@ export function Landing() {
           <span className="text-[16px] font-semibold tracking-[-0.01em]">Margin</span>
         </Link>
         <nav className="flex items-center gap-1">
+          <a
+            href={GITHUB}
+            aria-label="Margin on GitHub"
+            title="Margin on GitHub"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-ink"
+          >
+            <GitHubMark size={18} />
+          </a>
           <Link to="/login" className="inline-flex h-9 items-center rounded-md px-3 text-[14px] text-muted hover:bg-hover hover:text-ink">
             Sign in
           </Link>
@@ -41,6 +51,14 @@ export function Landing() {
 
       <main className="mx-auto max-w-[1040px] px-5">
         <section className="mx-auto max-w-[640px] pt-14 pb-12 text-center sm:pt-24">
+          <a
+            href={GITHUB}
+            className="mb-6 inline-flex h-7 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] text-muted hover:bg-hover hover:text-ink"
+          >
+            <GitHubMark size={13} />
+            Open source on GitHub
+            <ArrowRight size={13} strokeWidth={1.75} />
+          </a>
           <h1 className="text-[40px] leading-[1.08] font-bold tracking-[-0.035em] text-ink sm:text-[56px]">
             A quiet place
             <br />
@@ -57,7 +75,7 @@ export function Landing() {
               Sign in
             </Link>
           </div>
-          <p className="mt-3 text-[13px] text-faint">Free. No account needed.</p>
+          <p className="mt-3 text-[13px] text-faint">Free and open source. No account needed.</p>
         </section>
 
         <Preview />
@@ -102,6 +120,9 @@ export function Landing() {
         <div className="mx-auto flex max-w-[1040px] items-center justify-between px-5 py-5 text-[13px] text-faint">
           <span>Margin</span>
           <span className="flex items-center gap-4">
+            <a href={GITHUB} className="hover:text-muted">
+              GitHub
+            </a>
             <Link to="/privacy" className="hover:text-muted">
               Privacy
             </Link>
@@ -182,5 +203,14 @@ function Todo({ done, children }: { done?: boolean; children: string }) {
       </span>
       <span className={done ? "text-muted line-through" : ""}>{children}</span>
     </div>
+  );
+}
+
+/** GitHub's mark, from Octicons (lucide has no brand icons). */
+function GitHubMark({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" />
+    </svg>
   );
 }

@@ -19,9 +19,11 @@ export function Privacy() {
         <p className="mt-2 text-[14px] text-muted">Last updated {UPDATED}</p>
 
         <p className="mt-6">
-          Margin is a notes app made by Vipul Chaudhary. This page explains what it collects, why, and what you can do about
-          it. In short: your notes are yours. Without an account they never leave your device; signed in, only what you
-          share or choose to sync does. Nothing is sold or used for ads.
+          Margin is an open-source notes app made by{" "}
+          <a href="https://github.com/quark-script" className="text-accent hover:underline">quark-script</a>. This page
+          explains what it collects, why, and what you can do about it. In short: your notes are yours. Without an account
+          they never leave your device; signed in, only what you share or choose to sync does. Nothing is sold or used for
+          ads.
         </p>
 
         <Section title="Without an account">

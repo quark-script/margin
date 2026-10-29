@@ -14,12 +14,16 @@ async function ctx(opts = {}, init) {
   return p;
 }
 
-await step("signed-out visitors see the landing page: private by default, Start writing, Sign in", async () => {
+await step("signed-out visitors see the landing page: private by default, open source, Start writing, Sign in", async () => {
   const p = await ctx();
   await p.goto(BASE, { waitUntil: "networkidle" });
   await p.getByRole("heading", { name: /A quiet place/ }).waitFor();
   await p.getByText("Private by default. Your notes stay on your device and sync only if you want them to.").waitFor();
-  await p.getByText("Free. No account needed.").waitFor();
+  await p.getByText("Free and open source. No account needed.").waitFor();
+  const repo = "https://github.com/quark-script/margin";
+  assert((await p.getByRole("link", { name: "Margin on GitHub" }).getAttribute("href")) === repo, "GitHub icon in the header");
+  assert((await p.getByRole("link", { name: /Open source on GitHub/ }).getAttribute("href")) === repo, "open source link");
+  assert((await p.getByRole("link", { name: "GitHub", exact: true }).getAttribute("href")) === repo, "GitHub in the footer");
   await p.screenshot({ path: `${SHOTS}/60-landing-desktop.png`, fullPage: true });
   await p.getByRole("button", { name: "Start writing" }).first().click();
   await p.getByRole("navigation", { name: "Pages" }).getByText("On this device").waitFor(); // no account, nothing syncs
@@ -83,6 +87,7 @@ await step("privacy policy: linked from the landing page, open to everyone", asy
   await p.getByRole("heading", { name: "Privacy", exact: true }).waitFor();
   await p.getByRole("link", { name: "margin@dhanpulse.in" }).first().waitFor();
   if ((await p.content()).includes("gmail.com")) throw new Error("personal address still on the privacy page");
+  assert((await p.getByRole("link", { name: "quark-script" }).getAttribute("href")) === "https://github.com/quark-script", "made by quark-script");
   await p.screenshot({ path: `${SHOTS}/99-privacy.png`, fullPage: true });
   await p.goto(BASE + "/login", { waitUntil: "networkidle" });
   await p.getByLabel("Email").fill(EMAIL); await p.getByLabel("Password").fill(PASSWORD);
