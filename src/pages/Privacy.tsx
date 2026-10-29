@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 const CONTACT = "margin@dhanpulse.in";
-const UPDATED = "22 October 2026";
+const UPDATED = "28 October 2026";
 
 /** /privacy, for everyone. Plain and specific about what Margin does with data. */
 export function Privacy() {
@@ -22,6 +22,15 @@ export function Privacy() {
           Margin is a notes app made by Vipul Chaudhary. This page explains what it collects, why, and what you can do about
           it. In short: your notes are yours, they are private unless you share them, and nothing is sold or used for ads.
         </p>
+
+        <Section title="Without an account">
+          <p>
+            You can use Margin without an account. Your pages and images are then saved only in your browser, on that
+            device: none of it is sent to Margin's servers, and nobody else can see it. Clearing your browser's data
+            deletes it, and Settings can delete it all. If you create an account or sign in later, your pages and images
+            move into your account, and the rest of this policy applies to them.
+          </p>
+        </Section>
 
         <Section title="What Margin collects">
           <ul className="list-disc space-y-1.5 pl-5">
@@ -82,7 +91,8 @@ export function Privacy() {
           <p>
             So that it works offline, Margin keeps a copy of your notes in your browser's storage. Signing out or deleting your
             account removes it from that device. Your other devices remove their copy within about an hour of being online,
-            unless they hold edits that never synced.
+            unless they hold edits that never synced. If you turn off Sync for a device in Settings, changes made there stay
+            on that device until you turn it back on.
           </p>
         </Section>
 

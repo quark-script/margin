@@ -11,8 +11,9 @@ import { filterSuggestionItems } from "@blocknote/core/extensions";
 import { en } from "@blocknote/core/locales";
 import { FilePlus, FileText, Link2 } from "lucide-react";
 import "@blocknote/mantine/style.css";
-import { MEDIA_BUCKET, MEDIA_PREFIX, supabase } from "../lib/supabase";
-import { FILE_TYPES, formatBytes, MAX_FILE_BYTES, resolveFileUrl, STORAGE_LIMIT_BYTES, storageUsed } from "../lib/media";
+import { supabase } from "../lib/supabase";
+import { FILE_TYPES, formatBytes, MAX_FILE_BYTES, resolveFileUrl, STORAGE_LIMIT_BYTES, storageUsed, uploadToStorage } from "../lib/media";
+import { LOCAL_ID, saveLocalFile } from "../lib/local";
 import type { Block } from "../lib/types";
 import { isTrashed, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
@@ -144,23 +145,20 @@ async function uploadFile(file: File, blockId?: string) {
 }
 
 async function upload(file: File) {
-  if (!navigator.onLine) refuse("You're offline. Images can be added once you're back online.");
+  // Same limits without an account, so everything still fits once it moves into one.
   if (file.size > MAX_FILE_BYTES) refuse(`This file is ${formatBytes(file.size)}. Files can be up to 10 MB.`);
   if (file.type && !FILE_TYPES.includes(file.type)) refuse("Margin can store images (PNG, JPEG, WebP, GIF, SVG) and PDFs.");
+  if (usePages.getState().userId === LOCAL_ID) return saveLocalFile(file, file.name);
+  if (!navigator.onLine) refuse("You're offline. Images can be added once you're back online.");
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user.id;
   if (!uid) refuse("Sign in again to add files.");
-  const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "bin";
-  const path = `${uid}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, file, {
-    contentType: file.type || undefined,
-    cacheControl: "31536000",
-  });
-  if (error) {
+  try {
+    return await uploadToStorage(uid, file, file.name);
+  } catch {
     const full = await storageUsed().then((used) => used >= STORAGE_LIMIT_BYTES, () => false);
     refuse(full ? "Your storage is full (100 MB). Settings > Storage can free up space." : "Couldn't upload this file. Try again.");
   }
-  return MEDIA_PREFIX + path;
 }
 
 

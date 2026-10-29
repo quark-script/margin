@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "../store/auth";
 import { CalendarDays, FileText, Globe, Link2, Search, Upload, WifiOff } from "lucide-react";
 
 const features = [
@@ -54,6 +55,16 @@ export function Landing() {
               Sign in
             </Link>
           </div>
+          <p className="mt-4 text-[14px] text-muted">
+            Or{" "}
+            <button
+              onClick={() => useAuth.getState().startWithoutAccount()}
+              className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-ink"
+            >
+              use it without an account
+            </button>
+            : your notes stay on this device.
+          </p>
         </section>
 
         <Preview />

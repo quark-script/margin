@@ -4,6 +4,8 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { PAGE_COLUMNS, type Block, type Page } from "../lib/types";
 import { blocksToText } from "../lib/text";
+import { deleteLocalFile, LOCAL_ID, LOCAL_PREFIX, localFile } from "../lib/local";
+import { uploadToStorage } from "../lib/media";
 
 /**
  * Offline-first page store.
@@ -14,7 +16,8 @@ import { blocksToText } from "../lib/text";
  *   local edits, so you never lose what you just typed. Last write wins per page.
  */
 
-export type SyncStatus = "idle" | "syncing" | "offline" | "error";
+/** "local": no account, pages stay on this device. "paused": signed in with sync turned off. */
+export type SyncStatus = "idle" | "syncing" | "offline" | "error" | "local" | "paused";
 
 type State = {
   userId: string | null;
@@ -26,8 +29,13 @@ type State = {
   revs: Record<string, number>;
   status: SyncStatus;
   lastError: string | null;
+  /** This device sends and receives changes. Off: they wait here until it's turned back on. */
+  syncOn: boolean;
 
   init: (userId: string) => Promise<void>;
+  setSyncOn: (on: boolean) => void;
+  /** After signing in from Margin without an account: move this device's pages into the account. */
+  adoptLocal: (uid: string) => Promise<{ pages: number; failedImages: number }>;
   reset: () => Promise<void>;
   sync: () => Promise<void>;
 
@@ -49,6 +57,16 @@ const keys = (uid: string) => ({
   deletions: `notes:${uid}:deletions`,
   lastSync: `notes:${uid}:lastSync`,
 });
+
+// Sync is on unless turned off for this account on this device.
+const syncOffKey = (uid: string) => `margin:sync-off:${uid}`;
+const syncSaved = (uid: string) => {
+  try {
+    return localStorage.getItem(syncOffKey(uid)) !== "1";
+  } catch {
+    return true;
+  }
+};
 
 // Local edit counter per page: a flush only clears `dirty` if nothing changed while it was in flight.
 const versions = new Map<string, number>();
@@ -92,6 +110,7 @@ export const usePages = create<State>((set, get) => {
   };
 
   const markDirty = (ids: string[]) => {
+    if (get().userId === LOCAL_ID) return; // nothing to send without an account
     const dirty = { ...get().dirty };
     ids.forEach((id) => {
       dirty[id] = true;
@@ -312,6 +331,7 @@ export const usePages = create<State>((set, get) => {
     revs: {},
     status: "idle",
     lastError: null,
+    syncOn: true,
 
     init(userId) {
       if (get().userId === userId && get().loaded) return Promise.resolve();
@@ -341,6 +361,76 @@ export const usePages = create<State>((set, get) => {
     },
 
     sync: () => doSync(false),
+
+    setSyncOn(on) {
+      const uid = get().userId;
+      if (!uid || uid === LOCAL_ID) return;
+      try {
+        if (on) localStorage.removeItem(syncOffKey(uid));
+        else localStorage.setItem(syncOffKey(uid), "1");
+      } catch {
+        /* storage blocked: the choice lasts until the app closes */
+      }
+      set({ syncOn: on });
+      if (on) {
+        subscribe(uid);
+        void doSync(true);
+      } else {
+        void channel?.unsubscribe();
+        channel = null;
+        set({ status: "paused" });
+      }
+    },
+
+    async adoptLocal(uid) {
+      const k = keys(LOCAL_ID);
+      const local = Object.values((await idbGet<Record<string, Page>>(k.pages)) ?? {});
+      if (get().userId !== uid) return { pages: 0, failedImages: 0 };
+
+      // Images kept on this device go to the account's storage. One that can't (too big, storage
+      // full) keeps its local address and still shows here.
+      const moved = new Map<string, string>();
+      let failedImages = 0;
+      const find = (bs: Block[], out: Set<string>) =>
+        bs.forEach((b) => {
+          const url = b.props?.url;
+          if (typeof url === "string" && url.startsWith(LOCAL_PREFIX)) out.add(url);
+          if (b.children) find(b.children, out);
+        });
+      const urls = new Set<string>();
+      local.forEach((p) => find(p.content ?? [], urls));
+      for (const url of urls) {
+        const file = await localFile(url);
+        if (!file) continue;
+        try {
+          moved.set(url, await uploadToStorage(uid, file.blob, file.name));
+        } catch {
+          failedImages++;
+        }
+      }
+      const rewrite = (bs: Block[]): Block[] =>
+        bs.map((b) => {
+          const url = b.props?.url;
+          const to = typeof url === "string" ? moved.get(url) : undefined;
+          return { ...b, ...(to ? { props: { ...b.props, url: to } } : {}), ...(b.children ? { children: rewrite(b.children) } : {}) };
+        });
+
+      // After the account's own pages at the top level, in their own order.
+      const top = Math.max(-1, ...Object.values(get().pages).filter((p) => !p.parent_id).map((p) => p.position)) + 1;
+      const adopted: Record<string, Page> = {};
+      for (const p of local) {
+        adopted[p.id] = { ...p, owner_id: uid, content: rewrite(p.content ?? []), position: p.parent_id ? p.position : top + p.position };
+      }
+      if (local.length) {
+        set({ pages: { ...get().pages, ...adopted } });
+        markDirty(Object.keys(adopted));
+        persist();
+        scheduleFlush(0);
+      }
+      await delMany([k.pages, k.dirty, k.deletions, k.lastSync]);
+      for (const url of moved.keys()) await deleteLocalFile(url);
+      return { pages: local.length, failedImages };
+    },
 
     createPage(parentId, patch = {}) {
       const { pages, userId } = get();
@@ -429,7 +519,7 @@ export const usePages = create<State>((set, get) => {
       const ids = [id, ...descendantsOf(pages, id)];
       removeLocal(ids);
       // The server cascades to children; we only need to delete the root.
-      set({ deletions: { ...get().deletions, [id]: true } });
+      if (get().userId !== LOCAL_ID) set({ deletions: { ...get().deletions, [id]: true } });
       persist();
       scheduleFlush(200);
     },
@@ -452,26 +542,32 @@ export const usePages = create<State>((set, get) => {
   };
 
   async function initFor(userId: string): Promise<void> {
+    if (persistTimer) writeLocal(); // the last edits of whoever was here before
     cleanupListeners?.();
+    void channel?.unsubscribe();
+    channel = null;
     const k = keys(userId);
     const [pages, dirty, deletions] = await Promise.all([
       idbGet<Record<string, Page>>(k.pages),
       idbGet<Record<string, true>>(k.dirty),
       idbGet<Record<string, true>>(k.deletions),
     ]);
+    const local = userId === LOCAL_ID;
+    const syncOn = !local && syncSaved(userId);
     set({
       userId,
       loaded: true,
       pages: pages ?? {},
       dirty: dirty ?? {},
       deletions: deletions ?? {},
-      status: navigator.onLine ? "idle" : "offline",
+      syncOn,
+      status: local ? "local" : !syncOn ? "paused" : navigator.onLine ? "idle" : "offline",
     });
 
-    subscribe(userId);
+    if (syncOn) subscribe(userId);
 
     const onOnline = () => void get().sync();
-    const onOffline = () => set({ status: "offline" });
+    const onOffline = () => get().status !== "local" && get().status !== "paused" && set({ status: "offline" });
     // Mobile browsers may kill a hidden page without further events, so don't sit on
     // debounced writes once we're hidden.
     const onVisible = () => {
@@ -506,6 +602,8 @@ export const usePages = create<State>((set, get) => {
   async function doSync(full: boolean): Promise<void> {
     const uid = get().userId;
     if (!uid) return;
+    if (uid === LOCAL_ID) return void set({ status: "local" });
+    if (!get().syncOn) return void set({ status: "paused" });
     if (!navigator.onLine) {
       set({ status: "offline" });
       return;
@@ -537,6 +635,9 @@ export const usePages = create<State>((set, get) => {
     return syncing;
   }
 });
+
+/** Margin without an account: no sharing, version history or sync. */
+export const useIsLocal = () => usePages((s) => s.userId === LOCAL_ID);
 
 /** A page is in the trash if it or any ancestor is archived. */
 export function isTrashed(pages: Record<string, Page>, id: string): boolean {
@@ -578,11 +679,12 @@ export function hasPending() {
  */
 export async function dropSignedOutCopies() {
   const s = usePages.getState();
-  if (s.userId && !hasPending()) await s.reset();
+  if (s.userId && s.userId !== LOCAL_ID && !hasPending()) await s.reset();
   const keep = usePages.getState().userId;
   for (const key of await idbKeys()) {
     const uid = /^notes:([^:]+):pages$/.exec(String(key))?.[1];
-    if (!uid || uid === keep) continue;
+    // Pages kept without an account belong to no account: they stay.
+    if (!uid || uid === keep || uid === LOCAL_ID) continue;
     const k = keys(uid);
     const [dirty, deletions] = await Promise.all([
       idbGet<Record<string, true>>(k.dirty),

@@ -4,6 +4,7 @@ import { Download, Monitor, Moon, Sun, Upload } from "lucide-react";
 import { TopBar } from "../components/TopBar";
 import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
 import { useAuth } from "../store/auth";
+import { useIsLocal, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { useTheme, type ThemePref } from "../lib/theme";
 import { supabase } from "../lib/supabase";
@@ -21,20 +22,92 @@ export async function exportEverything() {
 
 /** /settings: your account, how Margin looks, your data. */
 export function Settings() {
+  const local = useIsLocal();
   return (
     <div className="flex h-full flex-col">
       <TopBar crumbs={null} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[760px] px-5 pb-24 pt-10 sm:px-14 sm:pt-16">
           <h1 className="page-title text-ink">Settings</h1>
-          <Account />
+          {local ? <ThisDevice /> : <Account />}
+          {!local && <Sync />}
           <Appearance />
-          <Storage />
+          {!local && <Storage />}
           <Data />
-          <Danger />
+          {local ? <DeleteLocal /> : <Danger />}
         </div>
       </div>
     </div>
+  );
+}
+
+/** Without an account: where the pages are, and how to get them into one. */
+function ThisDevice() {
+  const navigate = useNavigate();
+  return (
+    <Section title="Account">
+      <Row
+        label="On this device"
+        hint="You're using Margin without an account. Your pages are saved in this browser only: other devices can't see them, and clearing this browser's data deletes them."
+      />
+      <Row label="Sync across devices" hint="Create an account or sign in: the pages on this device move into it.">
+        <button className={button} onClick={() => navigate("/login")}>
+          Sign in
+        </button>
+        <button className={`${button} bg-ink text-paper ring-0 hover:bg-ink hover:opacity-90`} onClick={() => navigate("/signup")}>
+          Create an account
+        </button>
+      </Row>
+    </Section>
+  );
+}
+
+function Sync() {
+  const syncOn = usePages((s) => s.syncOn);
+  const waiting = usePages((s) => Object.keys(s.dirty).length + Object.keys(s.deletions).length);
+  const setSyncOn = usePages((s) => s.setSyncOn);
+  return (
+    <Section title="Sync">
+      <Row
+        label="Sync this device"
+        hint={
+          syncOn
+            ? "Your pages stay up to date with your account and your other devices."
+            : `Off: changes stay on this device until you turn it back on, and changes from your other devices don't arrive.${waiting ? ` ${waiting} change${waiting === 1 ? "" : "s"} waiting.` : ""}`
+        }
+      >
+        <button
+          role="switch"
+          aria-checked={syncOn}
+          aria-label="Sync this device"
+          onClick={() => setSyncOn(!syncOn)}
+          className="flex items-center rounded-md p-1 hover:bg-hover"
+        >
+          <span className={`switch ${syncOn ? "on" : ""}`} aria-hidden="true" />
+        </button>
+      </Row>
+    </Section>
+  );
+}
+
+function DeleteLocal() {
+  const navigate = useNavigate();
+  const remove = async () => {
+    if (!window.confirm("Delete all pages and images on this device? This can't be undone.")) return;
+    await useAuth.getState().deleteLocal();
+    navigate("/");
+  };
+  return (
+    <Section title="Delete">
+      <Row label="Delete everything on this device" hint="Deletes all your pages and images from this browser. This can't be undone.">
+        <button
+          onClick={() => void remove()}
+          className="h-8 rounded-md px-3 text-[13px] font-medium text-danger ring-1 ring-danger/40 ring-inset hover:bg-danger/10"
+        >
+          Delete everything
+        </button>
+      </Row>
+    </Section>
   );
 }
 

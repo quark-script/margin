@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ChevronsLeft,
   FileText,
+  LogIn,
   LogOut,
   Plus,
   Search,
@@ -214,12 +215,18 @@ function AccountMenu() {
   const email = useAuth((s) => s.session?.user.email ?? "");
   const signOut = useAuth((s) => s.signOut);
   const navigate = useNavigate();
-  const initial = (email[0] ?? "N").toUpperCase();
+  const initial = (email[0] ?? "M").toUpperCase();
   // Google accounts come with a name and photo.
   const meta = useAuth((s) => s.session?.user.user_metadata) as { full_name?: string; name?: string; avatar_url?: string } | undefined;
   const name = meta?.full_name?.trim() || meta?.name?.trim() || "";
   const [photoFailed, setPhotoFailed] = useState(false);
   const photo = !photoFailed ? meta?.avatar_url : undefined;
+  const local = useAuth((s) => s.local && !s.session);
+  const go = (path: string) => {
+    close();
+    useUi.getState().setSidebarOpen(false);
+    navigate(path);
+  };
 
   return (
     <>
@@ -245,29 +252,37 @@ function AccountMenu() {
       </button>
       <Popover anchor={btn.current} open={open} onClose={close} width={240}>
         <div className="px-2 py-1.5">
-          {name && <div className="truncate text-[13px] font-medium text-ink">{name}</div>}
-          <div className="truncate text-[12px] text-muted">{email}</div>
+          {local ? (
+            <>
+              <div className="truncate text-[13px] font-medium text-ink">On this device</div>
+              <div className="text-[12px] text-muted">No account. Your pages stay in this browser.</div>
+            </>
+          ) : (
+            <>
+              {name && <div className="truncate text-[13px] font-medium text-ink">{name}</div>}
+              <div className="truncate text-[12px] text-muted">{email}</div>
+            </>
+          )}
         </div>
         <MenuDivider />
-        <MenuItem
-          icon={<SettingsIcon size={15} />}
-          onClick={() => {
-            close();
-            useUi.getState().setSidebarOpen(false);
-            navigate("/settings");
-          }}
-        >
+        <MenuItem icon={<SettingsIcon size={15} />} onClick={() => go("/settings")}>
           Settings
         </MenuItem>
-        <MenuItem
-          icon={<LogOut size={15} />}
-          onClick={() => {
-            close();
-            void signOut();
-          }}
-        >
-          Sign out
-        </MenuItem>
+        {local ? (
+          <MenuItem icon={<LogIn size={15} />} onClick={() => go("/signup")}>
+            Create an account to sync
+          </MenuItem>
+        ) : (
+          <MenuItem
+            icon={<LogOut size={15} />}
+            onClick={() => {
+              close();
+              void signOut();
+            }}
+          >
+            Sign out
+          </MenuItem>
+        )}
       </Popover>
     </>
   );

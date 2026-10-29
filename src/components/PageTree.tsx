@@ -17,7 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
-import { childrenOf, usePages } from "../store/pages";
+import { childrenOf, useIsLocal, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { displayTitle } from "../lib/text";
 import { useShares } from "../store/shares";
@@ -108,6 +108,7 @@ export function PageMenu({ id, align = "start" }: { id: string; align?: "start" 
   const btn = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const page = usePages((s) => s.pages[id]);
+  const local = useIsLocal();
   const navigate = useNavigate();
   const { pageId } = useParams();
   const close = useCallback(() => setOpen(false), []);
@@ -148,9 +149,11 @@ export function PageMenu({ id, align = "start" }: { id: string; align?: "start" 
         <MenuItem icon={<CornerUpRight size={15} />} onClick={act(() => useUi.getState().setMoveId(id))}>
           Move to
         </MenuItem>
-        <MenuItem icon={<History size={15} />} onClick={act(() => useUi.getState().setHistory({ pageId: id }))}>
-          Version history
-        </MenuItem>
+        {!local && (
+          <MenuItem icon={<History size={15} />} onClick={act(() => useUi.getState().setHistory({ pageId: id }))}>
+            Version history
+          </MenuItem>
+        )}
         <MenuDivider />
         <MenuItem icon={<ClipboardCopy size={15} />} onClick={act(() => copyMarkdown(id))}>
           Copy as Markdown

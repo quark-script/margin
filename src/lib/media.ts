@@ -1,4 +1,5 @@
 import { MEDIA_BUCKET, MEDIA_PREFIX, supabase } from "./supabase";
+import { LOCAL_PREFIX, localFileUrl } from "./local";
 
 const signedUrlCache = new Map<string, { url: string; expires: number }>();
 const SIGN_SECONDS = 60 * 60 * 24 * 7;
@@ -8,6 +9,7 @@ const SIGN_SECONDS = 60 * 60 * 24 * 7;
  * a signed URL. Works for the owner and for people the page was shared with by invite.
  */
 export async function resolveFileUrl(url: string) {
+  if (url.startsWith(LOCAL_PREFIX)) return localFileUrl(url);
   if (!url.startsWith(MEDIA_PREFIX)) return url;
   const path = url.slice(MEDIA_PREFIX.length);
   const hit = signedUrlCache.get(path);
@@ -50,4 +52,16 @@ export async function deleteFiles(names: string[]) {
     const { error } = await supabase.storage.from(MEDIA_BUCKET).remove(names.slice(i, i + 100));
     if (error) throw error;
   }
+}
+
+/** Put a file in the account's storage; returns the address pages store for it. */
+export async function uploadToStorage(uid: string, blob: Blob, name: string) {
+  const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "bin";
+  const path = `${uid}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, blob, {
+    contentType: blob.type || undefined,
+    cacheControl: "31536000",
+  });
+  if (error) throw error;
+  return MEDIA_PREFIX + path;
 }

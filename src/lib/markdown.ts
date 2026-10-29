@@ -3,6 +3,8 @@
 import { BlockNoteEditor } from "@blocknote/core";
 import { strToU8, strFromU8, unzipSync, zipSync } from "fflate";
 import { MEDIA_BUCKET, MEDIA_PREFIX, SITE_URL, supabase } from "./supabase";
+import { LOCAL_ID, LOCAL_PREFIX, localFile, localFileUrl, saveLocalFile } from "./local";
+import { MAX_FILE_BYTES, uploadToStorage } from "./media";
 import { displayTitle } from "./text";
 import type { Block } from "./types";
 import { childrenOf, isTrashed, usePages } from "../store/pages";
@@ -85,6 +87,15 @@ export async function exportPages(): Promise<ExportResult> {
   let missingImages = 0;
   const attachments = new Map<string, string>();
   const saveImage = async (url: string): Promise<string | null> => {
+    if (url.startsWith(LOCAL_PREFIX)) {
+      if (attachments.has(url)) return attachments.get(url)!;
+      const local = await localFile(url);
+      if (!local) return null;
+      const file = `attachments/${url.slice(LOCAL_PREFIX.length)}`;
+      files[file] = new Uint8Array(await local.blob.arrayBuffer());
+      attachments.set(url, file);
+      return file;
+    }
     if (!url.startsWith(MEDIA_PREFIX)) return url;
     const path = url.slice(MEDIA_PREFIX.length);
     if (attachments.has(path)) return attachments.get(path)!;
@@ -139,9 +150,10 @@ export async function exportPages(): Promise<ExportResult> {
 
 /**
  * A page's blocks for use outside Margin: page links point at the page in Margin and images at
- * a link that works for 7 days (the files themselves are private).
+ * a link that works for 7 days (the files themselves are private). Images kept on this device
+ * (no account) only work for printing here, so Markdown leaves them out.
  */
-async function blocksForOutside(id: string): Promise<Block[]> {
+async function blocksForOutside(id: string, print = false): Promise<Block[]> {
   const { pages } = usePages.getState();
   const images: Block[] = [];
   const blocks = mapBlocks(pages[id]?.content ?? [], (b) => {
@@ -159,6 +171,10 @@ async function blocksForOutside(id: string): Promise<Block[]> {
   });
   for (const img of images) {
     const url = String(img.props?.url ?? "");
+    if (url.startsWith(LOCAL_PREFIX)) {
+      img.props = { ...img.props, url: print ? await localFileUrl(url) : "" };
+      continue;
+    }
     if (!url.startsWith(MEDIA_PREFIX)) continue;
     const { data } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(url.slice(MEDIA_PREFIX.length), 60 * 60 * 24 * 7);
     img.props = { ...img.props, url: data?.signedUrl ?? "" };
@@ -173,7 +189,7 @@ export async function pageMarkdown(id: string): Promise<string> {
 
 /** One page as HTML, for printing to PDF. */
 export async function pageHtml(id: string): Promise<string> {
-  return editor().blocksToHTMLLossy((await blocksForOutside(id)) as never);
+  return editor().blocksToHTMLLossy((await blocksForOutside(id, true)) as never);
 }
 
 /* ---------------- Import ---------------- */
@@ -303,21 +319,25 @@ export async function importFiles(files: File[]): Promise<ImportResult> {
 
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user.id;
+  const local = usePages.getState().userId === LOCAL_ID;
   const uploaded = new Map<string, string>();
   const missingImages: string[] = [];
   const upload = async (ref: string): Promise<string | null> => {
     const path = images.has(ref) ? ref : imageByName.get(baseName(ref).toLowerCase());
-    if (!path || !uid) return null;
+    if (!path || (!uid && !local)) return null;
     if (uploaded.has(path)) return uploaded.get(path)!;
     const ext = path.split(".").pop()!.toLowerCase();
-    const dest = `${uid}/${crypto.randomUUID()}.${ext}`;
     const type = ext === "svg" ? "image/svg+xml" : `image/${ext === "jpg" ? "jpeg" : ext}`;
-    const { error } = await supabase.storage
-      .from(MEDIA_BUCKET)
-      .upload(dest, new Blob([images.get(path)! as BlobPart], { type }), { contentType: type, cacheControl: "31536000" });
-    if (error) return null;
-    uploaded.set(path, MEDIA_PREFIX + dest);
-    return MEDIA_PREFIX + dest;
+    const blob = new Blob([images.get(path)! as BlobPart], { type });
+    // Without an account the image stays on this device, with the same size limit.
+    if (blob.size > MAX_FILE_BYTES) return null;
+    try {
+      const url = local ? await saveLocalFile(blob, baseName(path)) : await uploadToStorage(uid!, blob, baseName(path));
+      uploaded.set(path, url);
+      return url;
+    } catch {
+      return null;
+    }
   };
 
   for (const n of notes) {

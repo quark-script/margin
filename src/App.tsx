@@ -63,6 +63,7 @@ export default function App() {
   const linkFailed = useAuth((s) => s.linkFailed);
   const signedOut = useAuth((s) => s.signedOut);
   const deleted = useAuth((s) => s.deleted);
+  const local = useAuth((s) => s.local);
 
   useEffect(() => start(), [start]);
 
@@ -91,7 +92,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <UpdateOnNavigate />
-      {session ? (
+      {session || local ? (
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<HomeRoute />} />
@@ -100,6 +101,9 @@ export default function App() {
             <Route path="shared/:rootId/:pageId?" element={<SharedRedirect />} />
           </Route>
           <Route path="privacy" element={<Privacy />} />
+          {/* Without an account: signing in or up moves this device's pages into the account. */}
+          {!session && <Route path="login" element={<Login />} />}
+          {!session && <Route path="signup" element={<Login key="signup" initialMode="signup" />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       ) : (

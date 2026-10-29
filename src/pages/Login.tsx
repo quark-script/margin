@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { authLinkErrorCode, SITE_URL, supabase } from "../lib/supabase";
 import { useAuth } from "../store/auth";
 import { useTheme } from "../lib/theme";
@@ -83,6 +84,9 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
   useEffect(() => {
     if (linkFailed) setError(EXPIRED_LINK);
   }, [linkFailed]);
+  // Here from Margin without an account: signing in moves this device's pages into the account.
+  const local = useAuth((s) => s.local);
+  const navigate = useNavigate();
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -182,6 +186,9 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
 
   return (
     <Shell title={title} subtitle={subtitle}>
+      {local && (mode === "signin" || mode === "signup") && (
+        <p className="mt-4 rounded-md bg-hover px-3 py-2 text-[13px] text-ink">The pages on this device move into your account.</p>
+      )}
       {withGoogle && (
         <>
           <button
@@ -284,6 +291,19 @@ export function Login({ initialMode = "signin" }: { initialMode?: Mode }) {
           </>
         )}
       </p>
+      {(mode === "signin" || mode === "signup") && (
+        <p className="mt-2 text-[14px] text-muted">
+          <button
+            onClick={() => {
+              if (!local) useAuth.getState().startWithoutAccount();
+              navigate("/");
+            }}
+            className="font-medium text-ink hover:underline"
+          >
+            {local ? "Keep using Margin without an account" : "Use Margin without an account"}
+          </button>
+        </p>
+      )}
     </Shell>
   );
 }

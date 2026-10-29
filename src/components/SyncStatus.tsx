@@ -1,4 +1,4 @@
-import { CloudOff, RefreshCw, Check, AlertCircle } from "lucide-react";
+import { CloudOff, RefreshCw, Check, AlertCircle, HardDrive, PauseCircle } from "lucide-react";
 import { usePages } from "../store/pages";
 
 export function SyncStatus({ compact = false }: { compact?: boolean }) {
@@ -12,7 +12,16 @@ export function SyncStatus({ compact = false }: { compact?: boolean }) {
   let tone = "text-faint";
   let title = "All changes are synced";
 
-  if (status === "offline") {
+  if (status === "local") {
+    icon = <HardDrive size={13} />;
+    text = "On this device";
+    title = "No account: your pages are saved in this browser only";
+  } else if (status === "paused") {
+    icon = <PauseCircle size={13} />;
+    text = compact || !pending ? "Sync off" : `Sync off · ${pending} unsynced`;
+    title = "Sync is off for this device. Turn it on in Settings.";
+    tone = "text-muted";
+  } else if (status === "offline") {
     icon = <CloudOff size={13} />;
     text = compact ? "Offline" : pending ? `Offline · ${pending} unsynced` : "Offline";
     title = "Changes are kept on this device and sync when you're back online";

@@ -16,7 +16,8 @@ Built with React, TypeScript, BlockNote and Supabase.
 - Search across titles and content (`Ctrl/⌘ K`)
 - Import Markdown (an Obsidian vault as a .zip, or .md files) and export everything as Markdown
 - Copy a page as Markdown, or save it as a PDF
-- Works offline; syncs and updates live across devices
+- Works offline; syncs and updates live across devices. Sync can be turned off per device in Settings
+- Use it without an account: pages and images stay in the browser; signing in later moves them into the account
 - Light and dark themes, mobile layout
 - Settings page: name, password, theme, import and export
 - Sign in with email or Google; delete your account and all its data in Settings

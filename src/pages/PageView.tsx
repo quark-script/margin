@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { FileText, Plus, RotateCcw, Smile, Star, Trash2 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import type { BlockNoteEditor } from "@blocknote/core";
-import { ancestorsOf, childrenOf, isTrashed, usePages } from "../store/pages";
+import { ancestorsOf, childrenOf, isTrashed, useIsLocal, usePages } from "../store/pages";
 import { useUi } from "../store/ui";
 import { useTheme } from "../lib/theme";
 import { displayTitle } from "../lib/text";
@@ -28,6 +28,7 @@ export function PageView() {
   const status = usePages((s) => s.status);
   const rev = usePages((s) => s.revs[pageId] ?? 0);
   const trashed = usePages((s) => isTrashed(s.pages, pageId));
+  const local = useIsLocal();
   const ancestors = usePages(useShallow((s) => ancestorsOf(s.pages, pageId)));
   const isDark = useTheme((s) => s.isDark);
   const expandMany = useUi((s) => s.expandMany);
@@ -98,7 +99,7 @@ export function PageView() {
         crumbs={[...ancestors, page].map((p) => ({ id: p.id, icon: p.icon, title: displayTitle(p.title) }))}
         right={
           <>
-            {!trashed && <ShareMenu pageId={page.id} />}
+            {!trashed && !local && <ShareMenu pageId={page.id} />}
             {!trashed && (
               <IconButton
                 label={page.is_favorite ? "Remove from favorites" : "Add to favorites"}
