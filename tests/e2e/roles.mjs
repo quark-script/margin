@@ -152,6 +152,8 @@ await step("with full access: change someone's access, remove someone, open it t
 });
 
 await step("the owner sees what the full-access person changed", async () => {
+  // Reload once syncing is done: a request cut off by the reload would log an error.
+  await sidebar(owner).getByText("Saved", { exact: true }).waitFor();
   await owner.reload({ waitUntil: "networkidle" });
   await openShare(owner);
   await people(owner).getByText("pal@example.com").waitFor();

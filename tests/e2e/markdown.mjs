@@ -234,6 +234,8 @@ await step("shared pages show a marker in the sidebar", async () => {
   const home = byTitle("Home", root.id);
   assert((await sidebar().getByLabel("Shared").count()) === 0, "marker before sharing");
   be.shares.set(home.id, { page_id: home.id, token: "tokabc", can_edit: false });
+  // Reload once syncing is done: a request cut off by the reload would log an error.
+  await sidebar().getByText("Saved", { exact: true }).waitFor();
   await page.reload(); await sidebar().waitFor();
   await page.goto(`${BASE}/p/${home.id}`);
   const row = sidebar().getByRole("link", { name: /Home/ }).first();

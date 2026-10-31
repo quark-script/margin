@@ -37,7 +37,9 @@ const editor = () => page.locator(".bn-editor[contenteditable=true]").first();
 const menu = () => page.locator(".bn-suggestion-menu");
 
 async function newPage(title) {
+  const from = page.url();
   await sidebar().getByRole("button", { name: "New page" }).first().click();
+  await until(async () => page.url() !== from && (await page.getByLabel("Page title").inputValue()) === "", "the new page is open");
   await page.getByLabel("Page title").fill(title);
   await page.getByLabel("Page title").press("Enter");
   await until(() => page.evaluate(() => !!document.activeElement?.closest(".bn-editor")), "cursor in body");
@@ -116,6 +118,8 @@ await step("slash menu 'Link to page' opens the page picker", async () => {
 
 await step("link survives reload (stored + re-rendered)", async () => {
   await until(() => links(byTitle("Meeting notes")) === 3, "3 links on server");
+  // Reload once syncing is done: a request cut off by the reload would log an error.
+  await sidebar().getByText("Saved", { exact: true }).waitFor();
   await page.reload({ waitUntil: "networkidle" });
   await until(async () => (await editor().locator(".page-link").count()) === 3, "3 links rendered after reload");
 });

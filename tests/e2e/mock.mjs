@@ -16,6 +16,8 @@ export const GOOGLE_UID = "4e5f6a7b-8c9d-4e0f-a1b2-c3d4e5f6a7b8";
 export const GOOGLE_EMAIL = "gina@example.com";
 const accounts = { [UID]: EMAIL, [GUEST_UID]: GUEST_EMAIL, [GOOGLE_UID]: GOOGLE_EMAIL };
 const metadata = { [GOOGLE_UID]: { full_name: "Gina Google", avatar_url: "https://lh3.example.com/gina.png" } };
+// A 1x1 image: stands in for stored images and profile photos.
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 export const jwt = (exp = Math.floor(Date.now() / 1000) + 3600, uid = UID) =>
   `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: uid, role: "authenticated", exp, email: accounts[uid], aud: "authenticated" })}.c2ln`;
 const userFor = (uid) => ({ id: uid, aud: "authenticated", role: "authenticated", email: accounts[uid], app_metadata: { provider: metadata[uid] ? "google" : "email" }, user_metadata: metadata[uid] ?? {}, identities: [{ provider: metadata[uid] ? "google" : "email" }], created_at: "2026-08-26T12:21:48Z" });
@@ -595,7 +597,7 @@ export function createBackend() {
     if (p === "/functions/v1/share-file") {
       const page = url.searchParams.get("page");
       const ok = page ? (() => { const save = cur; cur = null; const g = pageGrant(page); cur = save; return g?.via === "link"; })() : sharePages(url.searchParams.get("token")) != null;
-      return route.fulfill({ status: ok ? 200 : 404, contentType: "image/png", headers: cors, body: ok ? Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64") : "" });
+      return route.fulfill({ status: ok ? 200 : 404, contentType: "image/png", headers: cors, body: ok ? PNG : "" });
     }
     if (p.startsWith("/storage/v1/object/") && !p.includes("/sign/")) {
       const key = p.replace(/^\/storage\/v1\/object\/(authenticated\/|public\/)?/, "");
@@ -648,6 +650,8 @@ export function createBackend() {
       return route.fulfill({ status: 200, contentType: "application/javascript", body: INSIGHTS_STUB });
     });
     await context.route(`${SUPA}/**`, routeHttp);
+    // Profile photos come from Google's image host: answered here, so no test depends on the network.
+    await context.route("https://lh3.example.com/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG }));
     await context.routeWebSocket(/realtime\/v1\/websocket/, routeWs);
     // Every device syncs everything (saved as "all"), unless a suite controls the device's choice
     // itself (state.freshDevices: nothing saved, so the app's own default applies).

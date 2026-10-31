@@ -34,7 +34,9 @@ async function signedIn(be, opts = {}) {
   return { c, p, nav };
 }
 async function newPage(p, nav, be, title) {
+  const from = p.url();
   await nav.getByRole("button", { name: "New page" }).first().click();
+  await until(async () => p.url() !== from && (await p.getByLabel("Page title").inputValue()) === "", "the new page is open");
   await p.getByLabel("Page title").fill(title);
   await until(() => [...be.db.values()].some((r) => r.title === title), "page synced");
   await until(async () => mine(await idbKeys(p)).includes(`notes:${UID}:pages`), "local copy saved");
@@ -104,7 +106,7 @@ await step("deleting: sends your email, clears this device, signs out here only,
   assert(![...be.db.values()].some((r) => r.owner_id === UID), "server pages gone");
   assert(new URL(p.url()).pathname === "/", "url: " + p.url());
   await until(async () => mine(await idbKeys(p)).length === 0, "local copy gone: " + mine(await idbKeys(p)));
-  assert(!(await hasSession(p)), "session removed from this device");
+  await until(async () => !(await hasSession(p)), "session removed from this device");
   assert(be.logouts.at(-1) === "local", "logout scope: " + be.logouts);
   await p.getByRole("link", { name: "Done" }).click();
   await p.getByRole("button", { name: "Start writing" }).first().waitFor(); // landing page

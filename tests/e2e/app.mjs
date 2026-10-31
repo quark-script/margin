@@ -2,7 +2,7 @@ import { chromium } from "playwright";
 import { createBackend, EMAIL, PASSWORD, jwt, UID } from "./mock.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:4173";
-const SHOTS = process.env.SHOTS;
+const SHOTS = new URL("../output", import.meta.url).pathname;
 const results = [];
 const errors = [];
 let current = "";
@@ -43,6 +43,13 @@ const editor = () => page.locator(".bn-editor[contenteditable=true]").first();
 // The open page's own "⋯" menu in the top bar (sidebar rows have their own).
 const topMenu = () => page.getByRole("navigation", { name: "Breadcrumb" }).locator("xpath=..").getByRole("button", { name: "More actions" });
 const sidebar = () => page.getByRole("navigation", { name: "Pages" });
+// "New page" and "Add a page inside" open the new page a moment later: until then, the title field
+// is still the old page's.
+async function openNew(button) {
+  const from = page.url();
+  await button.click();
+  await until(async () => page.url() !== from && (await page.getByLabel("Page title").inputValue()) === "", "the new page is open");
+}
 
 // ---------------- auth ----------------
 await step("login page: no sign-up link, says Margin", async () => {
@@ -84,7 +91,7 @@ await step("realtime subscription joined with 3 bindings", async () => {
 
 // ---------------- pages ----------------
 await step("create page, type title + body, syncs to server", async () => {
-  await sidebar().getByRole("button", { name: "New page" }).first().click();
+  await openNew(sidebar().getByRole("button", { name: "New page" }).first());
   await page.getByLabel("Page title").fill("Groceries");
   await page.getByLabel("Page title").press("Enter");
   await until(() => page.evaluate(() => !!document.activeElement?.closest(".bn-editor")), "Enter in title moves cursor into body");
@@ -99,7 +106,7 @@ await step("create page, type title + body, syncs to server", async () => {
 });
 
 await step("sub-page via 'Add a page inside' syncs with parent_id", async () => {
-  await page.getByRole("button", { name: "Add a page inside" }).last().click();
+  await openNew(page.getByRole("button", { name: "Add a page inside" }).last());
   await page.getByLabel("Page title").fill("Weekend list");
   await until(() => byTitle("Weekend list")?.parent_id === byTitle("Groceries")?.id, "child with parent on server");
   await page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Groceries").waitFor();
@@ -107,9 +114,9 @@ await step("sub-page via 'Add a page inside' syncs with parent_id", async () => 
 
 await step("parent + child created in one flush (levelled upload)", async () => {
   // Use the UI quickly: new top page then immediately a child before the debounce fires.
-  await sidebar().getByRole("button", { name: "New page" }).first().click();
+  await openNew(sidebar().getByRole("button", { name: "New page" }).first());
   await page.getByLabel("Page title").fill("Projects");
-  await page.getByRole("button", { name: "Add a page inside" }).last().click();
+  await openNew(page.getByRole("button", { name: "Add a page inside" }).last());
   await page.getByLabel("Page title").fill("Margin app");
   await until(() => byTitle("Margin app")?.parent_id && byTitle("Margin app").parent_id === byTitle("Projects")?.id, "both uploaded, child after parent");
 });
@@ -189,7 +196,7 @@ await step("page deleted on another device disappears live (realtime DELETE)", a
 
 // ---------------- offline ----------------
 await step("offline: edits are kept and sync after reconnect", async () => {
-  await sidebar().getByRole("button", { name: "New page" }).first().click();
+  await openNew(sidebar().getByRole("button", { name: "New page" }).first());
   await page.getByLabel("Page title").fill("Offline note");
   await until(() => byTitle("Offline note"), "page created online");
   await context.setOffline(true);
@@ -206,6 +213,8 @@ await step("offline: edits are kept and sync after reconnect", async () => {
 });
 
 await step("reload keeps everything (IndexedDB) and reopens last page", async () => {
+  // Reload once syncing is done: a request cut off by the reload would log an error.
+  await sidebar().getByText("Saved", { exact: true }).waitFor();
   await page.reload({ waitUntil: "networkidle" });
   await until(async () => (await page.getByLabel("Page title").inputValue()) === "Offline note", "last page reopened");
   await editor().getByText("typed while offline").waitFor();
