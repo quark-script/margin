@@ -91,6 +91,8 @@ await step("images are uploaded, to-dos and tables survive", async () => {
 });
 
 await step("imported page opens in the editor with link chips", async () => {
+  // Navigate once syncing is done: a request cut off by it would log an error.
+  await sidebar().getByText("Saved", { exact: true }).waitFor();
   await page.goto(`${BASE}/p/${byTitle("Home").id}`);
   await page.locator(".page-link", { hasText: "Alpha" }).waitFor();
   await page.screenshot({ path: `${SHOTS}/md-10-imported-home.png` });

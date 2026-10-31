@@ -523,7 +523,9 @@ export function createBackend() {
       }
       if (method === "POST") {
         const b = body();
-        const { out, err } = upsert(Array.isArray(b) ? b : [b]);
+        const rows = Array.isArray(b) ? b : [b];
+        if (state.beforeUpsert) await state.beforeUpsert(rows);
+        const { out, err } = upsert(rows);
         if (err) return send(err);
         return send(json(201, out.map((r) => pick(r, select))));
       }
@@ -640,6 +642,8 @@ export function createBackend() {
   state.oauthDecisions = [];
   state.agentActivity = new Map(); // uid -> [{ client_id, last_used_at }]
   state.invitesSent = [];
+  // Called with the rows of each page upsert before it's applied, while the app waits for it.
+  state.beforeUpsert = null;
   state.inviteResult = { sent: true };
   state.insights = [];
   state.install = async (context) => {

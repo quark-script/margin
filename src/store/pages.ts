@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { get as idbGet, set as idbSet, delMany, keys as idbKeys } from "idb-keyval";
+import { get as idbGet, set as idbSet, setMany, delMany, keys as idbKeys } from "idb-keyval";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { PAGE_COLUMNS, type Block, type Page } from "../lib/types";
@@ -158,6 +158,8 @@ const bumpVersion = (id: string) => versions.set(id, (versions.get(id) ?? 0) + 1
 let channel: RealtimeChannel | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
+// The latest write of this device's copy to IndexedDB.
+let saving: Promise<void> = Promise.resolve();
 let syncing: Promise<void> | null = null;
 let syncAgain = false;
 // A full pull was asked for (start, "Sync all pages" turned on) and hasn't run yet.
@@ -175,9 +177,24 @@ export const usePages = create<State>((set, get) => {
     const { userId, pages, dirty, deletions } = get();
     if (!userId) return;
     const k = keys(userId);
-    void idbSet(k.pages, pages);
-    void idbSet(k.dirty, dirty);
-    void idbSet(k.deletions, deletions);
+    // One transaction, so the pages and what's waiting to sync always match.
+    saving = setMany([
+      [k.pages, pages],
+      [k.dirty, dirty],
+      [k.deletions, deletions],
+    ]);
+  };
+
+  // Pages waiting to sync win over the server's copy on the next start, so before anything goes up,
+  // this device saves it. Otherwise, closed before the next save, it would keep an older copy than
+  // the one it sent, and send that back. `read` runs once nothing is left to save, in the same step,
+  // so what it reads is what's saved.
+  const saveFirst = async <T>(read: () => T): Promise<T> => {
+    for (;;) {
+      if (persistTimer) writeLocal();
+      await saving.catch(() => {});
+      if (!persistTimer) return read();
+    }
   };
 
   const persist = () => {
@@ -317,6 +334,7 @@ export const usePages = create<State>((set, get) => {
   const pushDeletions = async () => {
     const ids = Object.keys(get().deletions);
     if (!ids.length) return;
+    await saveFirst(() => {}); // deletions stay listed until they're sent, so they're saved
     const { error } = await supabase.from("pages").delete().in("id", ids);
     if (error) throw error;
     const deletions = { ...get().deletions };
@@ -358,10 +376,13 @@ export const usePages = create<State>((set, get) => {
     for (let l = 0; l <= maxLevel; l++) {
       const batchIds = ids.filter((id) => level.get(id) === l);
       if (!batchIds.length) continue;
-      const snapshotVersions = new Map(batchIds.map((id) => [id, versions.get(id) ?? 0]));
+      const { batch, snapshotVersions } = await saveFirst(() => ({
+        batch: batchIds.map((id) => get().pages[id]).filter((p): p is Page => !!p), // deleted meanwhile
+        snapshotVersions: new Map(batchIds.map((id) => [id, versions.get(id) ?? 0])),
+      }));
+      if (!batch.length) continue;
       const rows = await Promise.all(
-        batchIds.map(async (id) => {
-          const p = get().pages[id];
+        batch.map(async (p) => {
           return {
             id: p.id,
             owner_id: p.owner_id,
