@@ -44,14 +44,17 @@ cp .env.example .env
 ```
 
 Fill in `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (from **Project Settings > API
-Keys**) and `VITE_SITE_URL`. Then `npm run build` makes a static site in `dist/`.
+Keys**) and `VITE_SITE_URL`. Then `npm run build` makes a static site in `dist/`. `VITE_SITE_URL`
+also goes into the canonical addresses, link previews, `robots.txt` and the sitemap.
 
 On Vercel: import the repository (Vite is detected), add the same variables under
 **Settings > Environment Variables**, and deploy. [`vercel.json`](../vercel.json) sends every
-page to the app and routes the MCP server.
+page to the app, serves the pre-rendered public pages, keeps app pages out of search results and
+routes the MCP server. On another host, do the same: `/agents` and `/privacy` serve `agents.html`
+and `privacy.html`, everything else that isn't a file serves `index.html`.
 
 Edit [`src/pages/Privacy.tsx`](../src/pages/Privacy.tsx) to describe your instance and give your
-own contact address.
+own contact address, and replace `public/og.png`, the image link previews show.
 
 ## 4. AI agents (optional)
 

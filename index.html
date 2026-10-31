@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Margin" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/pwa-192.png" type="image/png" sizes="192x192" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Margin</title>
     <meta name="description" content="A quiet place for your notes. Private by default: your notes stay on your device and sync only if you want them to." />
@@ -18,6 +19,20 @@
         if (t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches))
           document.documentElement.classList.add("dark");
       } catch (e) {}
+      // A public page built into this file (vite.config.ts) shows before the app loads, but only
+      // where the app will show the same: not when signed in, using Margin without an account or
+      // in the installed app, and not at another address (the service worker answers every
+      // address with this file).
+      try {
+        var d = document.documentElement, at = d.getAttribute("data-prerendered");
+        if (at && (location.pathname !== at || location.search || location.hash ||
+            (at === "/" && (matchMedia("(display-mode: standalone)").matches || navigator.standalone ||
+              localStorage.getItem("margin:local") === "1" ||
+              Object.keys(localStorage).some(function (k) { return /^sb-.+-auth-token$/.test(k); })))))
+          d.classList.add("app-only");
+      } catch (e) {
+        document.documentElement.classList.add("app-only");
+      }
     </script>
   </head>
   <body>

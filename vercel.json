@@ -16,8 +16,36 @@
       "destination": "/api/oauth-protected-resource"
     },
     {
+      "source": "/agents",
+      "destination": "/agents.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
       "source": "/((?!assets/|_vercel/|api/|sw.js|workbox-|manifest.webmanifest|.*\\.(?:png|svg|ico|woff2)).*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(p|s|shared|oauth|auth)/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    },
+    {
+      "source": "/(login|signup|settings)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
     }
   ],
   "functions": {

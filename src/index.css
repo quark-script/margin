@@ -61,8 +61,16 @@
 @layer base {
 html,
 body,
-#root {
+#root,
+#prerendered {
   height: 100%;
+}
+
+/* A public page built into the HTML (vite.config.ts): hidden where the app shows something else.
+   The app removes it once it has drawn. */
+.app-only #prerendered,
+#prerendered ~ #root:empty {
+  display: none;
 }
 
 body {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "./store/auth";
 import { usePages } from "./store/pages";
@@ -66,8 +66,14 @@ export default function App() {
   const signedOut = useAuth((s) => s.signedOut);
   const deleted = useAuth((s) => s.deleted);
   const local = useAuth((s) => s.local);
+  const startWithoutAccount = useAuth((s) => s.startWithoutAccount);
 
   useEffect(() => start(), [start]);
+
+  // A public page built into the HTML (vite.config.ts) shows until the app has drawn its own.
+  useLayoutEffect(() => {
+    if (ready) document.getElementById("prerendered")?.remove();
+  }, [ready]);
 
   // Signed in from "Sign in to edit" or a page link: back to that page. Not in the middle of a
   // password reset: the reload would skip setting the new password.
@@ -115,7 +121,16 @@ export default function App() {
       ) : (
         <Routes>
           {/* The installed app, a failed email link and signing out go straight to sign-in. */}
-          <Route index element={isInstalled() || authLinkErrorCode || linkFailed || signedOut ? <Login /> : <Landing />} />
+          <Route
+            index
+            element={
+              isInstalled() || authLinkErrorCode || linkFailed || signedOut ? (
+                <Login />
+              ) : (
+                <Landing onStart={startWithoutAccount} />
+              )
+            }
+          />
           <Route path="signup" element={<Login key="signup" initialMode="signup" />} />
           <Route path="privacy" element={<Privacy />} />
           <Route path="agents" element={<Agents />} />

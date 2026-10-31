@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import { useAuth } from "../store/auth";
 import { ArrowRight, Bot, CalendarDays, FileText, Link2, Lock, RefreshCw, Upload, WifiOff } from "lucide-react";
 
 const GITHUB = "https://github.com/quark-script/margin";
@@ -13,15 +12,15 @@ const features = [
   { icon: Upload, title: "Bring your notes", text: "Import from Obsidian. Export to Markdown anytime." },
 ];
 
-/** Privacy first: writing starts on this device, with no account and no sync. */
-const startWriting = () => useAuth.getState().startWithoutAccount();
-
 const primary =
   "inline-flex h-10 items-center rounded-md bg-ink px-4 text-[15px] font-medium text-paper hover:opacity-90";
 const secondary = "inline-flex h-10 items-center rounded-md px-4 text-[15px] font-medium text-ink hover:bg-hover";
 
-/** The public front page for signed-out visitors. */
-export function Landing() {
+/**
+ * The public front page for signed-out visitors. `onStart` starts writing without an account: privacy
+ * first, on this device, with no sync. The page is also rendered at build time, without the app.
+ */
+export function Landing({ onStart }: { onStart: () => void }) {
   return (
     <div className="safe-top min-h-full">
       <header className="mx-auto flex max-w-[1040px] items-center justify-between px-5 py-4">
@@ -43,7 +42,7 @@ export function Landing() {
           <Link to="/login" className="inline-flex h-9 items-center rounded-md px-3 text-[14px] text-muted hover:bg-hover hover:text-ink">
             Sign in
           </Link>
-          <button onClick={startWriting} className="inline-flex h-9 items-center rounded-md bg-ink px-3 text-[14px] font-medium text-paper hover:opacity-90">
+          <button onClick={onStart} className="inline-flex h-9 items-center rounded-md bg-ink px-3 text-[14px] font-medium text-paper hover:opacity-90">
             Start writing
           </button>
         </nav>
@@ -68,7 +67,7 @@ export function Landing() {
             Private by default. Your notes stay on your device and sync only if you want them to.
           </p>
           <div className="mt-8 flex justify-center gap-2">
-            <button onClick={startWriting} className={primary}>
+            <button onClick={onStart} className={primary}>
               Start writing
             </button>
             <Link to="/login" className={secondary}>
@@ -109,7 +108,7 @@ export function Landing() {
           <h2 className="text-[24px] font-bold tracking-[-0.02em] text-ink">Start writing in seconds.</h2>
           <p className="mt-2 text-[15px] text-muted">Free and private. Install it on your phone from the browser.</p>
           <div className="mt-6">
-            <button onClick={startWriting} className={primary}>
+            <button onClick={onStart} className={primary}>
               Start writing
             </button>
           </div>

@@ -43,6 +43,20 @@ one per editing session. Sessions that end up looking like the version before ar
 past 30 days only the last version of each day is kept. The app shows what changed between
 versions ([`src/lib/versionDiff.ts`](../src/lib/versionDiff.ts)).
 
+## Search engines and link previews
+
+Margin is a single-page app, but its public pages (the landing page, `/agents` and `/privacy`) are
+also rendered into the HTML at build time ([`src/prerender.tsx`](../src/prerender.tsx), run by
+[`vite.config.ts`](../vite.config.ts)), each with its own title, description, canonical address and
+link preview. Search engines, AI crawlers and link previews read them without running JavaScript,
+and a first visit shows them at once. An inline script in `index.html` hides the built copy wherever
+the app will show something else (signed in, without an account, the installed app, any other
+address), and the app removes it once it has drawn its own.
+
+The build also writes `robots.txt` and `sitemap.xml` for `VITE_SITE_URL`.
+[`vercel.json`](../vercel.json) sends page and share addresses, sign-in and Settings with
+`X-Robots-Tag: noindex`, so pages opened to anyone with the link stay out of search results.
+
 ## MCP server
 
 [`api/mcp.ts`](../api/mcp.ts) is a stateless MCP server (Streamable HTTP). AI apps sign in with

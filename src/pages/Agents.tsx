@@ -2,8 +2,9 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Check, Copy } from "lucide-react";
 
-/** The address agents connect to: this site's /mcp. */
-export const mcpUrl = () => `${window.location.origin}/mcp`;
+/** The address agents connect to: this site's /mcp. Rendered at build time, the configured site's. */
+export const mcpUrl = () =>
+  `${typeof window === "undefined" ? import.meta.env.VITE_SITE_URL : window.location.origin}/mcp`;
 
 /** Copy text, with a short "Copied" in place of the label. */
 export function CopyButton({ text, label = "Copy", className = "" }: { text: string; label?: string; className?: string }) {
